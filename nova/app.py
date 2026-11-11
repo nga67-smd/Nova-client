@@ -55,6 +55,50 @@ def open_window(url: str) -> subprocess.Popen | None:
     return None
 
 
+def hide_child_consoles() -> None:
+    """On Windows, stop helper programs (Java, installers) from flashing a console window."""
+    if paths.os_name() != "windows":
+        return
+    orig = subprocess.Popen.__init__
+
+    def init(self, *a, **kw):
+        kw["creationflags"] = kw.get("creationflags", 0) | 0x08000000  # CREATE_NO_WINDOW
+        orig(self, *a, **kw)
+
+    subprocess.Popen.__init__ = init
+
+
+def setup_logging() -> Path | None:
+    """With no console (the windowed Nova.exe), send messages and crashes to nova.log instead."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return None
+    log = paths.data_dir() / "nova.log"
+    try:
+        if log.exists() and log.stat().st_size > 1_000_000:
+            log.unlink()
+        f = open(log, "a", encoding="utf-8", buffering=1)
+    except OSError:
+        return None
+    if sys.stdout is None:
+        sys.stdout = f
+    if sys.stderr is None:
+        sys.stderr = f
+    previous = sys.excepthook
+
+    def hook(kind, value, tb):
+        previous(kind, value, tb)
+        if paths.os_name() == "windows":
+            try:
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(0, f"Nova hit an error and has to close.\n\n{value}\n\nDetails: {log}",
+                                                 "Nova Launcher", 0x10)
+            except Exception:
+                pass
+
+    sys.excepthook = hook
+    return log
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="nova", description="Nova Launcher - optimized, customizable Minecraft launcher")
     ap.add_argument("--no-window", action="store_true", help="don't open a window; just print the URL")
@@ -69,6 +113,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.home:
         os.environ["NOVA_HOME"] = args.home
     paths.data_dir().mkdir(parents=True, exist_ok=True)
+    setup_logging()
+    hide_child_consoles()
 
     app = App()
     start_server(app, args.port)

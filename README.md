@@ -19,7 +19,8 @@ Windows: double-click **Nova.bat**. The window stays open so you can read any er
 ### No Python? Use Nova.exe
 
 The repo builds a standalone Windows `Nova.exe` on GitHub: **Actions → Build Nova.exe → Run
-workflow**, then download `Nova-windows` from the finished run. Tag a version (`v1.0.1`) to
+workflow**, then download `Nova-windows` from the finished run. `Nova.exe` opens only the launcher window (no console). If something goes wrong, errors are in
+`nova.log` in the data folder, or run `Nova-debug.exe`, which shows a console. Tag a version (`v1.0.1`) to
 publish it under **Releases** instead. The exe isn't code-signed, so Windows SmartScreen may
 warn on first run: click *More info → Run anyway*.
 

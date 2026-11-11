@@ -449,3 +449,22 @@ def test_split_args_windows_keeps_backslashes_and_handles_quotes():
     assert split_args('-Dfoo="a b" -XX:+Bar', windows=True) == ["-Dfoo=a b", "-XX:+Bar"]
     assert split_args(r'-Dx=C:\Users\me\mods "--name=Big Bob"', windows=True) == [r"-Dx=C:\Users\me\mods", "--name=Big Bob"]
     assert split_args('-Dfoo="a b"', windows=False) == ["-Dfoo=a b"]
+
+
+def test_windowed_mode_logs_to_file_when_stdout_is_missing(tmp_path, monkeypatch):
+    import sys
+    from nova import app
+    monkeypatch.setenv("NOVA_HOME", str(tmp_path))
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+    monkeypatch.setattr(sys, "excepthook", sys.__excepthook__)
+    log = app.setup_logging()
+    print("hello from windowed nova")
+    sys.stdout.flush()
+    assert log == tmp_path / "nova.log" and "hello from windowed nova" in log.read_text()
+
+
+def test_normal_console_run_does_not_touch_logging(tmp_path, monkeypatch):
+    from nova import app
+    monkeypatch.setenv("NOVA_HOME", str(tmp_path))
+    assert app.setup_logging() is None
