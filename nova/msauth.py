@@ -132,7 +132,7 @@ def minecraft_chain(ms_access_token: str) -> dict:
     st, m = _request(URLS["mc_login"], body={"identityToken": f"XBL3.0 x={uhs};{s['Token']}"})
     if st == 403:
         raise NovaError("Minecraft's servers rejected this app ID (403). New Azure apps must be approved by "
-                        "Mojang first: submit your app ID at https://aka.ms/AppRegistrations and wait for approval.")
+                        "Mojang first: submit your app ID at https://aka.ms/mce-reviewappid and wait for approval.")
     if st != 200 or "access_token" not in m:
         raise NovaError("Minecraft sign-in failed. Try again in a moment.")
     token = m["access_token"]
