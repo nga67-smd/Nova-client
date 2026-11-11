@@ -468,3 +468,11 @@ def test_normal_console_run_does_not_touch_logging(tmp_path, monkeypatch):
     from nova import app
     monkeypatch.setenv("NOVA_HOME", str(tmp_path))
     assert app.setup_logging() is None
+
+
+def test_nova_py_explains_incomplete_install_instead_of_vanishing(tmp_path):
+    import shutil, subprocess, sys
+    from pathlib import Path
+    shutil.copy(Path(__file__).resolve().parent.parent / "nova.py", tmp_path / "nova.py")  # no nova/ package next to it
+    r = subprocess.run([sys.executable, str(tmp_path / "nova.py")], capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    assert r.returncode == 1 and "Extract the whole zip" in r.stdout
