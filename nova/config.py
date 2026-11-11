@@ -50,7 +50,7 @@ def adoptium_api() -> str:
 # Nova's built-in Microsoft app (client) ID. Paste the ID of the Azure app that Mojang approved here
 # and everyone who runs this copy of Nova can sign in without any setup. A user can still override it
 # in Profiles -> Change app ID. The NOVA_MS_CLIENT_ID environment variable wins over this value.
-BUILTIN_MS_CLIENT_ID = ""
+BUILTIN_MS_CLIENT_ID = "bd999a2b-2433-403e-b3cb-98ce6cee09fb"
 
 
 def default_ms_client_id() -> str:
