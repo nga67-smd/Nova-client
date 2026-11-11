@@ -14,7 +14,7 @@ python nova.py --home D:\NovaData   # optional custom data folder
 You need Python 3.10+. Java is optional: Nova detects installed Java or downloads the right
 Temurin version (8/17/21) for each Minecraft version automatically.
 
-Windows: double-click **Nova.bat**. The window stays open so you can read any error.
+Windows: double-click **Nova.bat** (opens only the launcher; errors are written to `nova.log` in the data folder).
 
 ### No Python? Use Nova.exe
 
