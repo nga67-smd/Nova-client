@@ -173,7 +173,7 @@ class Fake:
                              "url": b + f"/libs/com/example/nat/1.0/nat-1.0-{k}.jar",
                              "sha1": sha1(native_jar), "size": len(native_jar)}
                          for k in ("natives-linux", "natives-windows", "natives-osx")}}},
-                    {"name": "com.example:winonly:1.0", "rules": [{"action": "allow", "os": {"name": "windows"}}],
+                    {"name": "com.example:winonly:1.0", "rules": [{"action": "allow", "os": {"name": "solaris"}}],
                      "downloads": {"artifact": {"path": "x/winonly.jar", "url": b + "/does-not-exist.jar"}}},
                 ],
                 "arguments": {

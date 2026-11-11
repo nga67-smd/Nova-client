@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 import re
+import shlex
+import sys
 import threading
 import time
 import urllib.error
@@ -311,3 +313,23 @@ class TaskManager:
 
     def get(self, tid: str) -> Task | None:
         return self._tasks.get(tid)
+
+
+_TOKEN = re.compile(r"""(?:"[^"]*"|'[^']*'|\S)+""")
+_QUOTED = re.compile(r"""\"([^\"]*)\"|'([^']*)'""")
+
+
+def split_args(text: str, windows: bool | None = None) -> list[str]:
+    """Split a command-line string the way a user expects.
+
+    POSIX uses shlex. Windows keeps backslashes (C:\\Users\\me) but still honours "quoted values",
+    which plain shlex(posix=False) leaves in place and splits wrongly.
+    """
+    if windows is None:
+        windows = sys.platform.startswith("win")
+    if not windows:
+        return shlex.split(text)
+    out = []
+    for m in _TOKEN.finditer(text):
+        out.append(_QUOTED.sub(lambda q: q.group(1) if q.group(1) is not None else q.group(2), m.group(0)))
+    return out

@@ -11,7 +11,7 @@ from collections import deque
 from pathlib import Path
 
 from . import __version__, accounts, instances, java as javamod, loaders, msauth, optimize, paths, settings as settingsmod, versions
-from .util import NovaError, Task, download_file
+from .util import NovaError, Task, download_file, split_args
 
 NO_WINDOW = 0x08000000 if paths.os_name() == "windows" else 0
 
@@ -179,7 +179,7 @@ def build_command(inst: dict, version: dict, account: dict, java_path: str, java
     if inst.get("fullscreen") and "--fullscreen" not in game:
         game.append("--fullscreen")
     if inst.get("game_args"):
-        game += shlex.split(inst["game_args"], posix=(paths.os_name() != "windows"))
+        game += split_args(inst["game_args"])
 
     tuning = optimize.build_jvm_args(inst, java_major, st.get("global_jvm_args", ""))
     extra = ["-Dminecraft.launcher.brand=NovaLauncher", f"-Dminecraft.launcher.version={__version__}"]

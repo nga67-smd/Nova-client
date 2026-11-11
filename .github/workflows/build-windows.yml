@@ -31,7 +31,10 @@ jobs:
           name: Nova-windows
           path: dist/Nova.exe
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Nova Launcher (latest build)' }}
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
           files: dist/Nova.exe
