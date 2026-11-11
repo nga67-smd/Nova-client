@@ -5,6 +5,9 @@ on:
   push:
     paths: ["hud-mod/**", ".github/workflows/build-hud.yml"]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -49,3 +52,11 @@ jobs:
         with:
           name: nova-hud-${{ matrix.mc }}
           path: hud-mod/build/libs/*.jar
+      - name: Publish to Releases
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: hud-latest
+          name: Nova HUD (latest build)
+          prerelease: true
+          files: hud-mod/build/libs/*.jar

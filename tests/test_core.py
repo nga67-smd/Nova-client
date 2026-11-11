@@ -442,3 +442,10 @@ def test_custom_version_import_and_launch(env, fake):
     assert instances.get("c")["version_id"] == "my-custom"   # not wiped by update logic
     reg = launch.Registry()
     assert run_task(lambda task: reg.launch(inst, task)).status == "done"
+
+
+def test_split_args_windows_keeps_backslashes_and_handles_quotes():
+    from nova.util import split_args
+    assert split_args('-Dfoo="a b" -XX:+Bar', windows=True) == ["-Dfoo=a b", "-XX:+Bar"]
+    assert split_args(r'-Dx=C:\Users\me\mods "--name=Big Bob"', windows=True) == [r"-Dx=C:\Users\me\mods", "--name=Big Bob"]
+    assert split_args('-Dfoo="a b"', windows=False) == ["-Dfoo=a b"]

@@ -131,7 +131,7 @@ def preset_flags(preset: str, max_mb: int, java_major: int) -> list[str]:
 
 
 def build_jvm_args(inst: dict, java_major: int, global_args: str = "") -> list[str]:
-    import shlex
+    from .util import split_args
     mx = int(inst.get("memory_max") or 2048)
     mn = int(inst.get("memory_min") or min(mx, 1024))
     mn = min(mn, mx)
@@ -139,7 +139,7 @@ def build_jvm_args(inst: dict, java_major: int, global_args: str = "") -> list[s
     args += preset_flags(inst.get("jvm_preset", "balanced"), mx, java_major)
     for extra in (global_args, inst.get("jvm_args", "")):
         if extra and extra.strip():
-            args += shlex.split(extra, posix=(paths.os_name() != "windows"))
+            args += split_args(extra)
     # de-duplicate exact repeats while preserving order
     seen, out = set(), []
     for a in args:
