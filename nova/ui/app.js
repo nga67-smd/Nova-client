@@ -556,7 +556,7 @@ function msSetupDialog(then) {
     el("li", {}, "Account type: “Personal Microsoft accounts only”. No redirect URI needed."),
     el("li", {}, "Authentication → Advanced settings → Allow public client flows: Yes."),
     el("li", {}, "Copy the Application (client) ID and paste it below."),
-    el("li", {}, "Mojang must approve that ID once (", el("a", { href: "https://aka.ms/AppRegistrations", target: "_blank", rel: "noopener" }, "aka.ms/AppRegistrations"), "). Until then sign-in stops at the last step."));
+    el("li", {}, "Mojang must approve that ID once (", el("a", { href: "https://aka.ms/mce-reviewappid", target: "_blank", rel: "noopener" }, "aka.ms/mce-reviewappid"), "). Until then sign-in stops at the last step."));
   modal("Set up Microsoft sign-in", el("div", {}, el("p", { class: "muted", style: { "margin-bottom": "10px" } }, "Nova signs in with your own free Azure app, so no one else's keys are involved. One-time setup:"), steps, field("Application (client) ID", id)),
     (close) => [el("button", { class: "btn", onclick: close }, "Cancel"), el("button", { class: "btn primary", onclick: async () => { try { S.data.settings = await api("/api/settings", { method: "POST", body: { ms_client_id: id.value } }); close(); if (S.data.settings.ms_client_id) then(); else render(); } catch (e) { fail(e); } } }, "Save & continue")], { wide: true });
 }

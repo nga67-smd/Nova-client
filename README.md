@@ -14,6 +14,15 @@ python nova.py --home D:\NovaData   # optional custom data folder
 You need Python 3.10+. Java is optional: Nova detects installed Java or downloads the right
 Temurin version (8/17/21) for each Minecraft version automatically.
 
+Windows: double-click **Nova.bat**. The window stays open so you can read any error.
+
+### No Python? Use Nova.exe
+
+The repo builds a standalone Windows `Nova.exe` on GitHub: **Actions → Build Nova.exe → Run
+workflow**, then download `Nova-windows` from the finished run. Tag a version (`v1.0.1`) to
+publish it under **Releases** instead. The exe isn't code-signed, so Windows SmartScreen may
+warn on first run: click *More info → Run anyway*.
+
 ## Features
 
 **Loaders:** Vanilla, Fabric, Quilt, Forge, NeoForge, and OptiFine (you supply the OptiFine
@@ -43,7 +52,7 @@ One-time setup, because Nova ships without anyone else's keys:
    **Personal Microsoft accounts only**, no redirect URI.
 2. Authentication → Advanced settings → **Allow public client flows: Yes**.
 3. Paste the Application (client) ID into Nova's setup dialog.
-4. **Mojang must approve the ID** (https://aka.ms/AppRegistrations). Until they do, sign-in
+4. **Mojang must approve the ID** (https://aka.ms/mce-reviewappid). Until they do, sign-in
    fails at the final step with a 403 and Nova tells you so. Only you can submit this.
 
 Requires an account that owns Minecraft: Java Edition (Game Pass included).

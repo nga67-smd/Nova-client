@@ -178,3 +178,15 @@ def test_client_id_validation(tmp_path, monkeypatch):
     with pytest.raises(NovaError):
         settings.update({"ms_client_id": "not-an-id"})
     assert settings.update({"ms_client_id": " 12345678-abcd-1234-abcd-1234567890ab "})["ms_client_id"].startswith("12345678")
+
+
+def test_builtin_client_id_is_default_but_user_can_override(tmp_path, monkeypatch):
+    from nova import config
+    monkeypatch.setenv("NOVA_HOME", str(tmp_path))
+    monkeypatch.setattr(config, "BUILTIN_MS_CLIENT_ID", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+    assert settings.load()["ms_client_id"] == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    settings.update({"ms_client_id": "12345678-abcd-1234-abcd-1234567890ab"})
+    assert settings.load()["ms_client_id"].startswith("12345678")
+    monkeypatch.setenv("NOVA_MS_CLIENT_ID", "99999999-bbbb-cccc-dddd-eeeeeeeeeeee")
+    settings.update({"ms_client_id": ""})
+    assert settings.load()["ms_client_id"].startswith("99999999")

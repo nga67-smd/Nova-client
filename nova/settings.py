@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from . import paths
+from . import config, paths
 from .util import NovaError, read_json, write_json
 
 THEME_PRESETS = {
@@ -49,6 +49,8 @@ def load() -> dict:
     data = read_json(paths.data_dir() / "settings.json", {}) or {}
     out = dict(DEFAULTS)
     out.update({k: v for k, v in data.items() if k in DEFAULTS})
+    if not str(out.get("ms_client_id", "")).strip():
+        out["ms_client_id"] = config.default_ms_client_id()
     return out
 
 
