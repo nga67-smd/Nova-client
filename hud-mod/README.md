@@ -11,4 +11,4 @@ Client-side only; settings are saved to `config/nova-hud.json`. Needs Fabric Loa
 
 ## Build
 Actions tab -> **Build Nova HUD mod** -> Run workflow, then download `nova-hud-<version>` from the run.
-Put the `.jar` in an instance's `mods` folder. Supported: Minecraft 1.21.1 for now.
+Put the `.jar` in an instance's `mods` folder. Supported: Minecraft 1.21.1 and 1.21.8 (one jar per version; pick the one matching your instance).

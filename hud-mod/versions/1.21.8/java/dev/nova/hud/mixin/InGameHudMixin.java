@@ -1,5 +1,6 @@
 package dev.nova.hud.mixin;
 
+import dev.nova.hud.Compat;
 import dev.nova.hud.NovaConfig;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.hud.InGameHud;
@@ -16,7 +17,7 @@ public class InGameHudMixin {
     @Unique
     private boolean novaPushed;
 
-    @Inject(method = "renderScoreboardSidebar", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/scoreboard/ScoreboardObjective;)V", at = @At("HEAD"), cancellable = true)
     private void nova$sidebarBefore(DrawContext context, ScoreboardObjective objective, CallbackInfo ci) {
         NovaConfig c = NovaConfig.get();
         if (!c.showSidebar) {
@@ -28,18 +29,18 @@ public class InGameHudMixin {
             // Scale around the right edge, vertically centred, where the sidebar sits.
             float px = context.getScaledWindowWidth();
             float py = context.getScaledWindowHeight() / 2f;
-            context.getMatrices().push();
-            context.getMatrices().translate(px, py + c.sidebarOffsetY, 0);
-            context.getMatrices().scale(s, s, 1f);
-            context.getMatrices().translate(-px, -py, 0);
+            Compat.push(context);
+            Compat.translate(context, px, py + c.sidebarOffsetY);
+            Compat.scale(context, s);
+            Compat.translate(context, -px, -py);
             novaPushed = true;
         }
     }
 
-    @Inject(method = "renderScoreboardSidebar", at = @At("RETURN"))
+    @Inject(method = "renderScoreboardSidebar(Lnet/minecraft/client/gui/DrawContext;Lnet/minecraft/scoreboard/ScoreboardObjective;)V", at = @At("RETURN"))
     private void nova$sidebarAfter(DrawContext context, ScoreboardObjective objective, CallbackInfo ci) {
         if (novaPushed) {
-            context.getMatrices().pop();
+            Compat.pop(context);
             novaPushed = false;
         }
     }
