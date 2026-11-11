@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "nova_hud",
+  "version": "${version}",
+  "name": "Nova HUD",
+  "description": "Press Right Shift in-game to move, scale or hide the sidebar, show an armor HUD, and tweak your held-item view model.",
+  "authors": ["Nova Launcher"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": { "client": ["dev.nova.hud.NovaHudClient"] },
+  "mixins": ["nova_hud.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": "~1.21",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
