@@ -1,10 +1,13 @@
 plugins {
-    id 'fabric-loom' version '1.8-SNAPSHOT'
+    id 'fabric-loom'   // version comes from loom_version in gradle.properties (see settings.gradle)
 }
 
 version = "${project.mod_version}+mc${project.minecraft_version}"
 group = 'dev.nova'
 base { archivesName = 'nova-hud' }
+
+// Version-specific sources (matrix-draw differences etc.) live in versions/<minecraft_version>/java
+sourceSets.main.java.srcDir "versions/${project.minecraft_version}/java"
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"

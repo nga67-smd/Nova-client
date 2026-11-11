@@ -4,12 +4,15 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.RenderTickCounter;
+import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 
 /** Draws the armor HUD and the optional FPS / coordinates lines. */
 public final class NovaHud {
     private static final int PURPLE = 0xFFB66BFF;
+    private static final EquipmentSlot[] ARMOR_SLOTS = {
+            EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET};
 
     private NovaHud() {}
 
@@ -42,12 +45,11 @@ public final class NovaHud {
         float x = c.armorLeft ? 4 : width - 4 - (c.armorDurability ? 44 : 18) * s;
         float y = (height - blockH) / 2f;
 
-        ctx.getMatrices().push();
-        ctx.getMatrices().translate(x, y, 0);
-        ctx.getMatrices().scale(s, s, 1f);
+        Compat.push(ctx);
+        Compat.translate(ctx, x, y);
+        Compat.scale(ctx, s);
         for (int i = 0; i < rows; i++) {
-            // armor list is boots(0) .. helmet(3); show helmet on top
-            ItemStack stack = player.getInventory().armor.get(3 - i);
+            ItemStack stack = player.getEquippedStack(ARMOR_SLOTS[i]);
             if (stack.isEmpty()) continue;
             int ry = i * rowH;
             ctx.drawItem(stack, 0, ry);
@@ -58,6 +60,6 @@ public final class NovaHud {
                 ctx.drawTextWithShadow(font, pct + "%", 19, ry + 4, color);
             }
         }
-        ctx.getMatrices().pop();
+        Compat.pop(ctx);
     }
 }

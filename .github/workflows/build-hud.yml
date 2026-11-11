@@ -14,7 +14,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mc: ["1.21.1"]          # add more Minecraft versions here as they are ported
+        include:                # add more Minecraft versions here as they are ported
+          - { mc: "1.21.1", gradle: "8.10.2", loom: "1.8-SNAPSHOT" }
+          - { mc: "1.21.8", gradle: "8.14.3", loom: "1.11-SNAPSHOT" }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -23,10 +25,11 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.10.2"
+          gradle-version: ${{ matrix.gradle }}
       - name: Look up the newest matching Fabric versions
         env:
           MC: ${{ matrix.mc }}
+          LOOM: ${{ matrix.loom }}
         run: |
           python3 - <<'PY'
           import json, os, re, urllib.request
@@ -40,7 +43,7 @@ jobs:
           fapi = get(f"https://api.modrinth.com/v2/project/fabric-api/version?{q}")[0]["version_number"]
           p = "hud-mod/gradle.properties"
           s = open(p).read()
-          for k, v in (("minecraft_version", mc), ("yarn_mappings", yarn), ("loader_version", loader), ("fabric_version", fapi)):
+          for k, v in (("loom_version", os.environ["LOOM"]), ("minecraft_version", mc), ("yarn_mappings", yarn), ("loader_version", loader), ("fabric_version", fapi)):
               s = re.sub(rf"^{k}=.*$", f"{k}={v}", s, flags=re.M)
           open(p, "w").write(s)
           print(s)
