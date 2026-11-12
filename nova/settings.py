@@ -40,6 +40,9 @@ DEFAULTS = {
     "show_console_on_launch": True,
     "default_memory_mode": "auto",   # auto | manual
     "ms_client_id": "",              # Azure app (client) ID for Microsoft sign-in
+    "discord_presence": True,        # Discord Rich Presence (needs Discord running)
+    "discord_show_details": True,    # show instance name / version, not just "Playing Minecraft"
+    "discord_client_id": "",         # optional override of the built-in Discord application ID
 }
 
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -83,6 +86,10 @@ def update(patch: dict) -> dict:
             raise NovaError("Unknown density.")
         if k == "library_view" and v not in ("grid", "list"):
             raise NovaError("Unknown view.")
+        if k == "discord_client_id":
+            v = v.strip()
+            if v and not re.fullmatch(r"\d{15,25}", v):
+                raise NovaError("A Discord application ID is a long number, like 1234567890123456789.")
         if k == "ms_client_id":
             v = v.strip()
             if v and not re.fullmatch(r"[0-9a-fA-F-]{36}", v):

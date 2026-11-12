@@ -10,7 +10,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from . import __version__, paths
+from . import __version__, discord, paths
 from .server import App, start_server
 
 
@@ -138,6 +138,8 @@ def main(argv: list[str] | None = None) -> int:
     hide_child_consoles()
 
     app = App()
+    presence = discord.Presence(app)
+    presence.start()
     start_server(app, args.port)
     url = f"http://127.0.0.1:{app.port}/?t={app.token}"
     print(f"Nova Launcher {__version__} running at {url}")
@@ -156,6 +158,8 @@ def main(argv: list[str] | None = None) -> int:
                 break
     except KeyboardInterrupt:
         pass
+    finally:
+        presence.shutdown()
     return 0
 
 
