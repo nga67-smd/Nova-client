@@ -100,6 +100,12 @@ def test_no_discord_running_is_harmless(env):
 def test_off_by_default_without_an_application_id(tmp_path, monkeypatch):
     monkeypatch.setenv("NOVA_HOME", str(tmp_path / "h"))
     monkeypatch.delenv("NOVA_DISCORD_CLIENT_ID", raising=False)
+    monkeypatch.setattr("nova.config.BUILTIN_DISCORD_CLIENT_ID", "")
     p = discord.Presence(FakeApp([]))
     p.tick()
     assert p.pipe is None and p.client_id() == ""
+
+
+def test_the_shipped_build_has_a_discord_application_id():
+    from nova import config
+    assert config.BUILTIN_DISCORD_CLIENT_ID.isdigit() and 15 <= len(config.BUILTIN_DISCORD_CLIENT_ID) <= 25
