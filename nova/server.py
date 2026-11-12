@@ -22,9 +22,28 @@ from pathlib import Path
 
 from . import (__version__, accounts, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths,
                settings as settingsmod, versions)
+from . import ai, look
 from .util import NovaError, TaskManager, human_size, dir_size, slugify
 
 MAX_UPLOAD = 2 * 1024 * 1024 * 1024
+MAX_BG_IMAGE = 8 * 1024 * 1024
+
+
+def _image_type(path) -> str:
+    """The MIME type of a PNG/JPEG/WebP/GIF file judged by its first bytes, or '' if it isn't one."""
+    try:
+        head = Path(path).read_bytes()[:12]
+    except OSError:
+        return ""
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if head.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    if head[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    return ""
 OPEN_SUBDIRS = {"", "mods", "resourcepacks", "shaderpacks", "screenshots", "saves", "config", "logs", "crash-reports"}
 
 
@@ -54,7 +73,7 @@ class App:
         accs = accounts.load()
         return {
             "version": __version__,
-            "settings": settingsmod.load(),
+            "settings": settingsmod.public(), "look_defaults": look.LOOK_DEFAULTS,
             "themes": settingsmod.THEME_PRESETS,
             "surfaces": settingsmod.SURFACES,
             "instances": [self.instance_view(i) for i in instances.list_all()],
@@ -102,9 +121,38 @@ def build_routes(app: App):
         app.bye_at = time.time()
         return {"ok": True}
 
+    @route("POST", "/api/ai/chat")
+    def _ai_chat(ctx):
+        before = {k: v for k, v in settingsmod.load().items() if k in look.LOOK_KEYS}
+        res = ai.chat(str(ctx.body.get("message", "")), ctx.body.get("history") or [])
+        changes = res.get("changes") or {}
+        if changes:
+            settingsmod.update(changes)
+        res["before"] = {k: before[k] for k in changes if k in before}
+        res["settings"] = settingsmod.public()
+        return res
+
+    @route("POST", "/api/look/image-upload")   # "-upload" paths receive the raw file, not JSON
+    def _look_image(ctx):
+        n = int(ctx.header("Content-Length") or 0)
+        if n <= 0 or n > MAX_BG_IMAGE:
+            raise NovaError("Pick an image under 8 MB.")
+        dest = paths.data_dir() / "background.img"
+        ctx.save_upload(dest)
+        if not _image_type(dest):
+            dest.unlink(missing_ok=True)
+            raise NovaError("That isn't a PNG, JPEG, WebP or GIF image.")
+        return settingsmod.public(settingsmod.update({"bg_image": True, "bg_mode": "image"}))
+
+    @route("DELETE", "/api/look/image")
+    def _look_image_delete(ctx):
+        (paths.data_dir() / "background.img").unlink(missing_ok=True)
+        cur = settingsmod.load()
+        return settingsmod.public(settingsmod.update({"bg_image": False, "bg_mode": "surface" if cur["bg_mode"] == "image" else cur["bg_mode"]}))
+
     @route("POST", "/api/settings")
     def _settings(ctx):
-        return settingsmod.update(ctx.body)
+        return settingsmod.public(settingsmod.update(ctx.body))
 
     @route("GET", "/api/tasks")
     def _tasks(ctx):
@@ -517,6 +565,13 @@ def make_handler(app: App):
                                   {"Content-Security-Policy": "default-src 'self'; img-src 'self' https: data:; "
                                                               "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
                                                               "connect-src 'self'; frame-ancestors 'none'"})
+            if path == "/background":
+                t = (query.get("t") or [""])[0]
+                f = paths.data_dir() / "background.img"
+                ctype = _image_type(f) if hmac.compare_digest(t, app.token) else ""
+                if not ctype:
+                    return self._send(404, b"Not found", "text/plain")
+                return self._send(200, f.read_bytes(), ctype)
             rel = path.lstrip("/")
             if rel.startswith("static/"):
                 rel = rel[len("static/"):]

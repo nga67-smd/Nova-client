@@ -25,6 +25,7 @@ function el(tag, attrs, ...kids) {
 }
 
 const ICONS = {
+  spark: "M12 2l1.9 5.6L19.5 9.5l-5.6 1.9L12 17l-1.9-5.6L4.5 9.5l5.6-1.9zM19 14l.9 2.6 2.6.9-2.6.9L19 21l-.9-2.6-2.6-.9 2.6-.9z",
   library: "M4 5h7v7H4zM13 5h7v7h-7zM4 14h7v6H4zM13 14h7v6h-7z",
   discover: "M11 4a7 7 0 1 0 4.2 12.6l4.4 4.4 1.4-1.4-4.4-4.4A7 7 0 0 0 11 4zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10z",
   profiles: "M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z",
@@ -82,19 +83,40 @@ async function loadState() {
   renderRail();
 }
 
+const FONTS = {
+  rounded: '"SF Pro Rounded", ui-rounded, "Segoe UI Variable Display", Nunito, "Varela Round", system-ui, sans-serif',
+  mono: 'ui-monospace, "Cascadia Code", "JetBrains Mono", Consolas, monospace',
+  serif: 'Georgia, "Iowan Old Style", "Times New Roman", serif',
+};
+const SURFACE_VARS = ["--bg", "--panel", "--raised", "--raised2", "--line", "--line2"];
+S.bgv = 0;
 function applyTheme() {
-  const s = S.data.settings, r = document.documentElement;
-  r.style.setProperty("--accent", s.accent); r.style.setProperty("--accent2", s.accent2);
-  r.style.setProperty("--radius", s.radius + "px"); r.style.setProperty("--scale", s.font_scale / 100);
+  const s = S.data.settings, r = document.documentElement, st = r.style;
+  st.setProperty("--accent", s.accent); st.setProperty("--accent2", s.accent2);
+  st.setProperty("--radius", s.radius + "px"); st.setProperty("--scale", s.font_scale / 100);
   r.dataset.surface = s.surface; r.dataset.density = s.density;
   r.dataset.glow = s.glow ? "on" : "off"; r.dataset.anim = s.animations ? "on" : "off"; r.dataset.stars = s.starfield ? "on" : "off";
   stars.enabled = !!s.starfield;
+  // custom page color: derive every surface from it
+  if (s.base) {
+    const mix = (p) => `color-mix(in srgb, ${s.base}, white ${p}%)`;
+    st.setProperty("--bg", s.base); st.setProperty("--panel", mix(4)); st.setProperty("--raised", mix(7)); st.setProperty("--raised2", mix(11));
+    st.setProperty("--line", mix(15)); st.setProperty("--line2", mix(22));
+  } else SURFACE_VARS.forEach((v) => st.removeProperty(v));
+  // background: theme color, gradient, or the user's image (colors are validated by the server)
+  let layer = "";
+  if (s.bg_mode === "gradient" && s.gradient) layer = `linear-gradient(${s.angle}deg, ${s.gradient})`;
+  else if (s.bg_mode === "image" && s.bg_image) { const o = s.overlay / 100; layer = `linear-gradient(rgba(0,0,0,${o}), rgba(0,0,0,${o})), url("/background?t=${window.NOVA_TOKEN}&v=${S.bgv}") center / cover no-repeat`; }
+  if (layer) st.setProperty("--bg-layer", layer); else st.removeProperty("--bg-layer");
+  r.dataset.bg = layer ? s.bg_mode : "surface";
+  r.dataset.pattern = s.pattern || "none"; st.setProperty("--po", (s.pattern_opacity ?? 12) / 100);
+  if (FONTS[s.font]) st.setProperty("--font", FONTS[s.font]); else st.removeProperty("--font");
 }
 
 const instById = (id) => S.data.instances.find((i) => i.id === id);
 
 // ------------------------------------------------------------------ rail
-const NAV = [["library", "Library", "library"], ["discover", "Discover", "discover"], ["profiles", "Profiles", "profiles"], ["settings", "Settings", "settings"]];
+const NAV = [["library", "Library", "library"], ["discover", "Discover", "discover"], ["profiles", "Profiles", "profiles"], ["ai", "Nova AI", "spark"], ["settings", "Settings", "settings"]];
 function renderRail() {
   const nav = $("#nav"); nav.replaceChildren();
   for (const [id, label, ic] of NAV) {
@@ -116,7 +138,7 @@ function go(page, inst, tab) {
 async function render() {
   const v = $("#view"); v.replaceChildren();
   try {
-    const fn = { library: pageLibrary, discover: pageDiscover, profiles: pageProfiles, settings: pageSettings, instance: pageInstance }[S.page];
+    const fn = { library: pageLibrary, discover: pageDiscover, profiles: pageProfiles, ai: pageAI, settings: pageSettings, instance: pageInstance }[S.page];
     await fn(v);
   } catch (e) { v.replaceChildren(el("div", { class: "empty" }, el("h2", {}, "Something went wrong"), el("p", {}, e.message))); }
 }
@@ -602,6 +624,56 @@ async function pageProfiles(v) {
       el("button", { class: "btn ghost sm", "aria-label": "Remove " + a.username, onclick: () => confirmDialog("Remove " + a.username + "?", a.type === "microsoft" ? "The saved login is deleted from this computer. You can sign in again any time." : "The profile is removed from Nova. Worlds stay in your instances.", "Remove", async () => { await api(`/api/accounts/${a.id}`, { method: "DELETE" }); await loadState(); render(); }) }, icon("trash"))))) : el("div", { class: "muted" }, "No profiles yet."));
 }
 
+// ------------------------------------------------------------------ Nova AI (theme chat)
+const AI_SUGGESTIONS = ["Ocean theme", "Cyberpunk with a grid", "Dark red, no stars", "Purple to blue gradient", "Sharper corners", "Sunset, but rounded and cozy", "Monospace font", "Reset"];
+S.chat = [{ role: "assistant", text: "Hi! Tell me how you want Nova to look and I'll change it live: colors, gradients, patterns, fonts, corners. You can say \u201cundo\u201d any time." }];
+S.undo = [];
+
+function pageAI(v) {
+  const s = S.data.settings;
+  const log = el("div", { class: "chat-log", role: "log", "aria-live": "polite" });
+  const input = el("input", { type: "text", placeholder: "Describe a look, e.g. \u201cdeep ocean with a faint grid\u201d", maxlength: "400", autocomplete: "off", "aria-label": "Message to Nova AI" });
+  const undoBtn = el("button", { class: "btn", disabled: !S.undo.length, onclick: () => undo() }, "Undo last change");
+  const draw = () => { log.replaceChildren(...S.chat.map((m) => el("div", { class: "msg " + m.role }, el("div", { class: "bubble" }, m.text), m.note ? el("div", { class: "hint" }, m.note) : null))); log.scrollTop = log.scrollHeight; undoBtn.disabled = !S.undo.length; };
+  const say = (text, note) => { S.chat.push({ role: "assistant", text, note }); draw(); };
+  const undo = async () => {
+    const b = S.undo.pop();
+    if (!b) return say("Nothing to undo.");
+    try { await saveSettings(b); renderRail(); say("Undone."); } catch (e) { fail(e); }
+  };
+  const send = async (text) => {
+    text = text.trim(); if (!text) return;
+    input.value = "";
+    S.chat.push({ role: "user", text });
+    if (/^\s*undo\s*$/i.test(text)) { draw(); return undo(); }
+    const history = S.chat.slice(0, -1).filter((m) => !m.pending).slice(-8).map((m) => ({ role: m.role, text: m.text }));
+    S.chat.push({ role: "assistant", text: "Thinking\u2026", pending: true }); draw(); input.disabled = true;
+    try {
+      const res = await api("/api/ai/chat", { method: "POST", body: { message: text, history } });
+      S.chat.pop();
+      S.data.settings = res.settings; applyTheme(); renderRail();
+      if (Object.keys(res.changes || {}).length) S.undo.push(res.before);
+      S.chat.push({ role: "assistant", text: res.reply || "Done.", note: res.error || (res.engine === "claude" ? "Made with Claude" : null) });
+    } catch (e) { S.chat.pop(); S.chat.push({ role: "assistant", text: e.message }); }
+    input.disabled = false; draw(); input.focus();
+  };
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") send(input.value); });
+  const key = el("input", { type: "password", placeholder: "sk-ant-\u2026", autocomplete: "off", spellcheck: "false", "aria-label": "Claude API key" });
+  const saveKey = async () => { try { await saveSettings({ ai_api_key: key.value }); key.value = ""; toast("API key saved on this computer.", "ok"); render(); } catch (e) { fail(e); } };
+  const engineChip = s.ai_api_key_set && s.ai_engine !== "offline" ? el("span", { class: "chip good" }, "Claude") : el("span", { class: "chip" }, "Built-in assistant");
+  v.append(el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Nova AI"), el("p", {}, "Describe how you want Nova to look. It restyles the launcher as you chat.")), engineChip),
+    el("div", { class: "card chat", style: { "max-width": "760px" } }, log,
+      el("div", { class: "chips" }, AI_SUGGESTIONS.map((t) => el("button", { class: "chip btn-chip", onclick: () => send(t) }, t))),
+      el("div", { class: "row", style: { "margin-top": "12px" } }, el("div", { class: "grow" }, input), el("button", { class: "btn primary", onclick: () => send(input.value) }, "Send"), undoBtn)),
+    el("div", { class: "section card", style: { "max-width": "760px", "margin-top": "16px" } }, el("h2", {}, "Understand anything with Claude (optional)"),
+      el("p", { class: "muted small", style: { margin: "6px 0 12px" } }, "Without a key, the built-in assistant understands common requests (moods, colors, patterns, fonts, sizes). With an Anthropic API key, Claude designs a custom look from any description. Your key stays on this computer and is only sent to Anthropic; using it costs a little per message on your Anthropic account. Get one at ",
+        el("a", { href: "https://console.anthropic.com/settings/keys", target: "_blank", rel: "noopener" }, "console.anthropic.com"), "."),
+      el("div", { class: "row" }, el("div", { class: "grow" }, key), el("button", { class: "btn", onclick: saveKey }, s.ai_api_key_set ? "Replace key" : "Save key"),
+        s.ai_api_key_set ? el("button", { class: "btn ghost", onclick: async () => { await saveSettings({ ai_api_key: "" }); toast("API key removed.", "ok"); render(); } }, "Remove") : null),
+      toggleRow("Use only the built-in assistant", "Never contact Claude, even if a key is saved.", s.ai_engine === "offline", async (c) => { await saveSettings({ ai_engine: c ? "offline" : "auto" }); render(); })));
+  draw();
+}
+
 // ------------------------------------------------------------------ settings
 async function pageSettings(v) {
   const s = S.data.settings, th = S.data.themes;
@@ -612,6 +684,11 @@ async function pageSettings(v) {
   const drawColors = () => { const a = el("input", { type: "color", value: S.data.settings.accent, "aria-label": "Accent color" }), b = el("input", { type: "color", value: S.data.settings.accent2, "aria-label": "Second accent color" });
     a.addEventListener("input", () => { set({ accent: a.value, theme_preset: "custom" }); }); b.addEventListener("input", () => { set({ accent2: b.value, theme_preset: "custom" }); });
     colorsBox.replaceChildren(el("div", { class: "row" }, a, el("span", {}, "Accent")), el("div", { class: "row" }, b, el("span", {}, "Glow & gradients"))); };
+  const gradColors = () => { const g = (S.data.settings.gradient || "").split(","); return [g[0] || "#0b0816", g[1] || "#1b1131"]; };
+  const setGrad = (i, c) => { const g = gradColors(); g[i] = c; set({ gradient: g.join(","), bg_mode: "gradient" }); };
+  const bgPicker = (label, value, onInput) => { const c = el("input", { type: "color", value, "aria-label": label }); c.addEventListener("change", () => onInput(c.value)); return el("div", { class: "row" }, c, el("span", {}, label)); };
+  const pickImage = () => { const f = el("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif" });
+    f.addEventListener("change", async () => { if (!f.files[0]) return; try { S.data.settings = await api("/api/look/image-upload", { raw: f.files[0], filename: f.files[0].name }); S.bgv++; applyTheme(); render(); } catch (e) { fail(e); } }); f.click(); };
   drawSw(); drawColors();
   const range = (key, min, max, fmt) => { const out = el("b", {}, fmt(s[key])); const r = el("input", { type: "range", min, max, value: s[key], "aria-label": key }); r.addEventListener("input", () => { out.textContent = fmt(+r.value); set({ [key]: +r.value }); }); return el("div", { class: "row" }, el("div", { class: "grow" }, r), out); };
   const javaIn = el("input", { type: "text", value: s.java_path, placeholder: "Automatic" }); javaIn.addEventListener("change", () => set({ java_path: javaIn.value.trim() }));
@@ -619,6 +696,22 @@ async function pageSettings(v) {
   v.append(el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Settings"), el("p", {}, "Make Nova look and behave the way you like. Changes apply instantly."))),
     el("div", { class: "section card" }, el("h2", {}, "Theme"), el("div", { style: { height: "14px" } }), swatchBox, el("div", { style: { height: "18px" } }), colorsBox,
       el("div", { style: { height: "22px" } }), field("Background", el("div", { class: "seg", role: "group" }, Object.entries(S.data.surfaces).map(([k, x]) => el("button", { "aria-pressed": String(S.data.settings.surface === k), onclick: async (e) => { await set({ surface: k }); render(); } }, x.name))))),
+    el("div", { class: "section card" }, el("h2", {}, "Background"), el("div", { style: { height: "12px" } }),
+      field("Style", el("div", { class: "seg", role: "group" }, [["surface", "Theme"], ["gradient", "Gradient"], ["image", "Image"]].map(([k, l]) => el("button", { "aria-pressed": String(s.bg_mode === k), onclick: async () => {
+        if (k === "image" && !s.bg_image) return pickImage();
+        if (k === "gradient" && !s.gradient) await set({ gradient: "#0b0816,#1b1131" });
+        await set({ bg_mode: k }); render(); } }, l)))),
+      el("div", { style: { height: "14px" } }), el("div", { class: "row", style: { gap: "22px", "flex-wrap": "wrap" } },
+        bgPicker("Page color", s.base || "#0b0816", (c) => set({ base: c })), bgPicker("Gradient start", gradColors()[0], (c) => setGrad(0, c)), bgPicker("Gradient end", gradColors()[1], (c) => setGrad(1, c)),
+        el("button", { class: "btn ghost sm", onclick: async () => { await set({ base: "" }); render(); } }, "Default page color")),
+      el("div", { style: { height: "14px" } }), el("div", { class: "fields" }, field("Gradient angle", range("angle", 0, 360, (x) => x + "\u00b0")), field("Image dimming", range("overlay", 0, 85, (x) => x + "%"))),
+      el("div", { style: { height: "14px" } }), el("div", { class: "fields" },
+        field("Pattern", el("div", { class: "seg", role: "group" }, [["none", "None"], ["grid", "Grid"], ["dots", "Dots"], ["lines", "Lines"]].map(([k, l]) => el("button", { "aria-pressed": String(s.pattern === k), onclick: async () => { await set({ pattern: k }); render(); } }, l)))),
+        field("Pattern strength", range("pattern_opacity", 0, 60, (x) => x + "%"))),
+      el("div", { style: { height: "14px" } }), field("Font", el("div", { class: "seg", role: "group" }, [["system", "Default"], ["rounded", "Rounded"], ["mono", "Mono"], ["serif", "Serif"]].map(([k, l]) => el("button", { "aria-pressed": String(s.font === k), onclick: async () => { await set({ font: k }); render(); } }, l)))),
+      el("div", { style: { height: "14px" } }), el("div", { class: "row" }, el("button", { class: "btn", onclick: pickImage }, icon("download"), s.bg_image ? "Change image\u2026" : "Choose image\u2026"),
+        s.bg_image ? el("button", { class: "btn ghost", onclick: async () => { S.data.settings = await api("/api/look/image", { method: "DELETE" }); applyTheme(); render(); } }, "Remove image") : null,
+        el("button", { class: "btn ghost", onclick: async () => { await set(S.data.look_defaults); render(); toast("Back to Nova's original look.", "ok"); } }, "Reset look"))),
     el("div", { class: "section card" }, el("h2", {}, "Layout"), el("div", { style: { height: "14px" } }), el("div", { class: "fields" }, field("Corner roundness", range("radius", 0, 28, (x) => x + " px")), field("Text size", range("font_scale", 80, 140, (x) => x + "%"))),
       el("div", { style: { height: "14px" } }), field("Density", el("div", { class: "seg", role: "group" }, [["comfortable", "Comfortable"], ["compact", "Compact"]].map(([k, l]) => el("button", { "aria-pressed": String(S.data.settings.density === k), onclick: async () => { await set({ density: k }); render(); } }, l))))),
     el("div", { class: "section card" }, el("h2", {}, "Effects"), toggleRow("Starfield background", "Slowly drifting stars behind the interface.", s.starfield, (c) => set({ starfield: c })), toggleRow("Glow", "Violet glow on buttons and the background.", s.glow, (c) => set({ glow: c })), toggleRow("Animations", "Turn off to save battery on laptops.", s.animations, (c) => set({ animations: c }))),
