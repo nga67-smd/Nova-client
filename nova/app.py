@@ -99,6 +99,27 @@ def setup_logging() -> Path | None:
     return log
 
 
+IDLE_LIMIT = 300      # seconds without any ping before quitting (browsers throttle hidden windows heavily)
+BYE_GRACE = 10        # seconds to wait after the window says it's closing, in case it was just a reload
+NO_WINDOW_LIMIT = 120
+
+
+def shutdown_reason(app, now: float | None = None) -> str | None:
+    """Why Nova should quit now, or None to keep running. Never quits while a download or game is running."""
+    now = time.time() if now is None else now
+    busy = any(t.get("status") == "running" for t in app.tasks.list()) or \
+        any(app.games.running(g) for g in list(app.games.games))
+    if busy:
+        return None
+    if app.bye_at and app.bye_at > app.last_ping and now - app.bye_at > BYE_GRACE:
+        return "Window closed - shutting down."
+    if app.seen_ping and now - app.last_ping > IDLE_LIMIT:
+        return "Window stopped responding - shutting down."
+    if not app.seen_ping and now - app.last_ping > NO_WINDOW_LIMIT:
+        return "No window connected - shutting down."
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="nova", description="Nova Launcher - optimized, customizable Minecraft launcher")
     ap.add_argument("--no-window", action="store_true", help="don't open a window; just print the URL")
@@ -129,12 +150,9 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(1.0)
             if keep:
                 continue
-            idle = time.time() - app.last_ping
-            if app.seen_ping and idle > 25 and not any(app.games.running(g) for g in list(app.games.games)):
-                print("Window closed - shutting down.")
-                break
-            if not app.seen_ping and idle > 120:
-                print("No window connected - shutting down.")
+            reason = shutdown_reason(app)
+            if reason:
+                print(reason)
                 break
     except KeyboardInterrupt:
         pass

@@ -122,6 +122,9 @@ async function render() {
 }
 
 // ------------------------------------------------------------------ tasks & polling
+// Tell the service the window is closing so Nova can quit promptly (a reload cancels this with its next ping).
+window.addEventListener("pagehide", () => { try { fetch("/api/bye", { method: "POST", headers: { "X-Nova-Token": window.NOVA_TOKEN }, keepalive: true }); } catch {} });
+
 function runTask(taskId, onDone) { S.taskHandlers[taskId] = onDone; poll(); }
 
 async function poll() {

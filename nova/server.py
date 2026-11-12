@@ -35,6 +35,7 @@ class App:
         self.games = launch.Registry()
         self.last_ping = time.time()
         self.seen_ping = False
+        self.bye_at = 0.0          # when the window last said it was closing
         self.port = 0
         self.ms_flows: dict[str, threading.Event] = {}
         self.httpd: ThreadingHTTPServer | None = None
@@ -94,6 +95,12 @@ def build_routes(app: App):
         app.last_ping = time.time()
         app.seen_ping = True
         return {"ok": True, "tasks": app.tasks.list(), "running": app.games.all_info()}
+
+    @route("POST", "/api/bye")
+    def _bye(ctx):
+        # The window is closing (or reloading: the next ping cancels this).
+        app.bye_at = time.time()
+        return {"ok": True}
 
     @route("POST", "/api/settings")
     def _settings(ctx):
