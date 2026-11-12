@@ -42,6 +42,22 @@ installer jar from optifine.net, since it has no public download API).
 - Separate instances with their own mods, settings, Java and JVM args
 - Duplicate, export and import instances; mod search/install/update via Modrinth
 
+## Nova AI (theme chat) and custom looks
+
+**Nova AI** in the sidebar restyles the launcher from plain words ("ocean theme", "dark red with a
+grid", "sharper corners", "undo"). It works offline with a built-in assistant. Add an Anthropic API
+key on that page and Claude designs a look from any description. The key is stored locally, never
+shown in the interface, and only sent to api.anthropic.com. Every change is validated: only known
+theme settings can change, backgrounds stay dark and accents stay visible so text remains readable.
+Settings -> Background has the same controls by hand: gradient, pattern, your own image, font.
+
+## Discord Rich Presence
+
+Shows "Playing Nova Launcher" (instance, Minecraft version, loader) on your Discord profile. Create an
+application at discord.com/developers named "Nova Launcher", upload a Rich Presence art asset named
+`nova`, and set its Application ID in `nova/config.py` (`BUILTIN_DISCORD_CLIENT_ID`) or the
+`NOVA_DISCORD_CLIENT_ID` environment variable. Toggle it under Settings -> Discord.
+
 ## Online play (Microsoft sign-in)
 
 Profiles → **Sign in with Microsoft**. You approve a short code at microsoft.com/link, so your

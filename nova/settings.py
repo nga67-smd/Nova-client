@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from . import config, paths
+from . import config, look, paths
 from .util import NovaError, read_json, write_json
 
 THEME_PRESETS = {
@@ -39,6 +39,11 @@ DEFAULTS = {
     "keep_launcher_open": True,
     "show_console_on_launch": True,
     "default_memory_mode": "auto",   # auto | manual
+    # custom look (validated by look.sanitize)
+    "base": "", "bg_mode": "surface", "gradient": "", "angle": 160, "pattern": "none", "pattern_opacity": 12,
+    "overlay": 35, "font": "system", "look_name": "", "bg_image": False,
+    # AI theme chat
+    "ai_api_key": "", "ai_model": "claude-sonnet-5-5", "ai_engine": "auto",   # auto | offline
     "ms_client_id": "",              # Azure app (client) ID for Microsoft sign-in
     "discord_presence": True,        # Discord Rich Presence (needs Discord running)
     "discord_show_details": True,    # show instance name / version, not just "Playing Minecraft"
@@ -86,6 +91,19 @@ def update(patch: dict) -> dict:
             raise NovaError("Unknown density.")
         if k == "library_view" and v not in ("grid", "list"):
             raise NovaError("Unknown view.")
+        if k in look.LOOK_DEFAULTS and k not in ("accent", "accent2", "theme_preset", "surface", "radius", "font_scale", "density"):
+            clean = look.sanitize({k: v})
+            if k not in clean:
+                raise NovaError(f"'{k}' has an invalid value.")
+            v = clean[k]
+        if k == "ai_api_key":
+            v = v.strip()
+            if v and not re.fullmatch(r"[A-Za-z0-9_\-]{20,300}", v):
+                raise NovaError("That doesn't look like an API key.")
+        if k == "ai_engine" and v not in ("auto", "offline"):
+            raise NovaError("Unknown AI mode.")
+        if k == "ai_model" and not re.fullmatch(r"[A-Za-z0-9._-]{3,60}", v):
+            raise NovaError("Unknown model name.")
         if k == "discord_client_id":
             v = v.strip()
             if v and not re.fullmatch(r"\d{15,25}", v):
@@ -97,3 +115,14 @@ def update(patch: dict) -> dict:
         cur[k] = v
     write_json(paths.data_dir() / "settings.json", cur)
     return cur
+
+
+SECRET_KEYS = ("ai_api_key",)
+
+
+def public(s: dict | None = None) -> dict:
+    """Settings that are safe to send to the UI: secrets replaced by a yes/no flag."""
+    s = dict(s if s is not None else load())
+    for k in SECRET_KEYS:
+        s[k + "_set"] = bool(s.pop(k, ""))
+    return s
