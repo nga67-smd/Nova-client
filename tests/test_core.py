@@ -476,3 +476,30 @@ def test_nova_py_explains_incomplete_install_instead_of_vanishing(tmp_path):
     shutil.copy(Path(__file__).resolve().parent.parent / "nova.py", tmp_path / "nova.py")  # no nova/ package next to it
     r = subprocess.run([sys.executable, str(tmp_path / "nova.py")], capture_output=True, text=True, stdin=subprocess.DEVNULL)
     assert r.returncode == 1 and "Extract the whole zip" in r.stdout
+
+
+def test_nova_keeps_running_while_window_is_throttled_or_work_is_active(tmp_path, monkeypatch):
+    import time
+    from nova import app as appmod
+    monkeypatch.setenv("NOVA_HOME", str(tmp_path))
+    a = appmod.App()
+    a.seen_ping, a.last_ping = True, time.time() - 60          # a minimized window pinging slowly
+    assert appmod.shutdown_reason(a) is None                    # used to quit after 25s
+    a.last_ping = time.time() - appmod.IDLE_LIMIT - 1
+    assert "stopped responding" in appmod.shutdown_reason(a)
+    t = a.tasks.run("download", lambda task: time.sleep(1.5))   # an active download blocks shutdown
+    assert appmod.shutdown_reason(a) is None
+    time.sleep(1.8)
+    assert appmod.shutdown_reason(a) is not None
+
+
+def test_closing_window_quits_after_grace_but_reload_does_not(tmp_path, monkeypatch):
+    import time
+    from nova import app as appmod
+    monkeypatch.setenv("NOVA_HOME", str(tmp_path))
+    a = appmod.App(); now = time.time()
+    a.seen_ping, a.last_ping, a.bye_at = True, now - 20, now - 5
+    assert appmod.shutdown_reason(a, now) is None                       # inside the grace period
+    assert "Window closed" in appmod.shutdown_reason(a, now + 6)
+    a.last_ping = now + 1                                               # reload: a new ping arrived after "bye"
+    assert appmod.shutdown_reason(a, now + 6) is None
