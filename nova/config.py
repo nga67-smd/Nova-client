@@ -60,7 +60,7 @@ def default_ms_client_id() -> str:
 # Discord Rich Presence. Create an application at https://discord.com/developers/applications named
 # "Nova Launcher" (that name is what Discord shows after "Playing") and paste its Application ID here.
 # In the app's Rich Presence -> Art Assets, upload an image named "nova". Empty = presence stays off.
-BUILTIN_DISCORD_CLIENT_ID = ""
+BUILTIN_DISCORD_CLIENT_ID = "1570576985665835038"
 
 
 def default_discord_client_id() -> str:
