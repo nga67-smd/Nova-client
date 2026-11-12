@@ -231,9 +231,10 @@ class GameProcess:
         code = self.proc.wait()
         self.exit_code = code
         self.ended = time.time()
+        # Save the play time before announcing the exit, so anything that sees "exited" also sees last_played.
+        instances.record_play(self.inst_id, int(self.ended - self.started))
         self.status = "exited" if code == 0 else "crashed"
         self.add(f"[Nova] Game process ended with exit code {code}.")
-        instances.record_play(self.inst_id, int(self.ended - self.started))
         if self.post_exit.strip():
             try:
                 subprocess.Popen(self.post_exit, shell=True, cwd=self.plan["cwd"], env=self.plan["env"],
