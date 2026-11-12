@@ -55,3 +55,13 @@ BUILTIN_MS_CLIENT_ID = "bd999a2b-2433-403e-b3cb-98ce6cee09fb"
 
 def default_ms_client_id() -> str:
     return os.environ.get("NOVA_MS_CLIENT_ID", BUILTIN_MS_CLIENT_ID).strip()
+
+
+# Discord Rich Presence. Create an application at https://discord.com/developers/applications named
+# "Nova Launcher" (that name is what Discord shows after "Playing") and paste its Application ID here.
+# In the app's Rich Presence -> Art Assets, upload an image named "nova". Empty = presence stays off.
+BUILTIN_DISCORD_CLIENT_ID = ""
+
+
+def default_discord_client_id() -> str:
+    return os.environ.get("NOVA_DISCORD_CLIENT_ID", BUILTIN_DISCORD_CLIENT_ID).strip()

@@ -626,6 +626,9 @@ async function pageSettings(v) {
       toggleRow("Download Java automatically", "Nova fetches the right Java version when none is installed.", s.auto_download_java, (c) => set({ auto_download_java: c })),
       toggleRow("Open console when the game starts", null, s.show_console_on_launch, (c) => set({ show_console_on_launch: c })),
       el("div", { style: { height: "14px" } }), el("div", { class: "fields" }, field("Java for every instance", javaIn, "Leave empty to let Nova choose. Instances can override this."), field("Java arguments for every instance", gj))),
+    el("div", { class: "section card" }, el("h2", {}, "Discord"), el("div", { style: { height: "10px" } }),
+      toggleRow("Rich Presence", "Shows \u201cPlaying Nova Launcher\u201d on your Discord profile while Nova is open. Needs the Discord desktop app running.", s.discord_presence, (c) => set({ discord_presence: c })),
+      toggleRow("Show instance and version", "Turn off to only show \u201cPlaying Minecraft\u201d, with no instance name or version.", s.discord_show_details, (c) => set({ discord_show_details: c }))),
     el("div", { class: "section card" }, el("h2", {}, "About"), el("p", { class: "muted", style: { margin: "6px 0 12px" } }, `Nova Launcher ${S.data.version}. Your data lives in ${S.data.data_dir}`), el("div", { class: "row" }, el("button", { class: "btn", onclick: () => api("/api/quit", { method: "POST" }).then(() => { document.body.textContent = "Nova has closed. You can close this window."; }) }, "Quit Nova"))));
 }
 
