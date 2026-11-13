@@ -37,19 +37,23 @@ installer jar from optifine.net, since it has no public download API).
 - Cleanup tool for logs, crash reports and caches
 
 **Customization**
-- Six themes plus custom accent / glow colors, three background depths (OLED, Void, Nebula)
+- 27 themes, custom colors, animated and imported backgrounds (see below), three surface depths
 - Corner roundness, text size, density, starfield, glow and animation toggles
 - Separate instances with their own mods, settings, Java and JVM args
 - Duplicate, export and import instances; mod search/install/update via Modrinth
 
-## Nova AI (theme chat) and custom looks
+## Themes and animated backgrounds
 
-**Nova AI** in the sidebar restyles the launcher from plain words ("ocean theme", "dark red with a
-grid", "sharper corners", "undo"). It works offline with a built-in assistant. Add an Anthropic API
-key on that page and Claude designs a look from any description. The key is stored locally, never
-shown in the interface, and only sent to api.anthropic.com. Every change is validated: only known
-theme settings can change, backgrounds stay dark and accents stay visible so text remains readable.
-Settings -> Background has the same controls by hand: gradient, pattern, your own image, font.
+Settings -> Themes has 27 ready-made themes (Ocean, Cyberpunk, Synthwave, Matrix, Sakura, Galaxy,
+Aurora...). Everything in a theme stays editable: accent colors, page color, gradient and angle,
+pattern, font, corners, text size. **Save current look** keeps your own themes (up to 30).
+
+**Backgrounds:** a flat or gradient theme background, a *Flowing gradient* or *Aurora* animation, or
+your own file via **Import image, GIF or video**: PNG / JPEG / WebP / GIF (up to 8 MB) or MP4 / WebM
+(up to 64 MB). GIFs and videos animate; set the dimming slider so text stays readable. Animated
+backgrounds can pause while Minecraft is running, and stop with Animations off or reduced-motion.
+Imported files are checked by content (not the file name) and are never uploaded anywhere.
+MP4 playback depends on your browser's codecs; if a video doesn't play, use WebM or a GIF.
 
 ## Discord Rich Presence
 

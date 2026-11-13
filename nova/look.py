@@ -1,9 +1,8 @@
-"""Custom looks: validation of theme changes, ready-made moods, and an offline theme assistant.
+"""Custom looks: validation of every theme change, ready-made themes, and user-saved themes.
 
-Every change to the theme, whether typed in Settings or proposed by the AI chat, goes through
-`sanitize()`. It only lets known keys through, checks every value, and keeps colors readable
-(Nova's text is light, so backgrounds stay dark and accents stay visible). Nothing the AI returns
-is ever used as raw CSS.
+Every change to the look goes through `sanitize()`. It only lets known keys through, checks every
+value, and keeps colors readable (Nova's text is light, so backgrounds stay dark and accents stay
+visible). Nothing is ever used as raw CSS.
 """
 from __future__ import annotations
 
@@ -14,14 +13,15 @@ HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 LOOK_DEFAULTS = {
     "accent": "#8b5cf6", "accent2": "#c026d3", "theme_preset": "nova",
-    "surface": "void", "base": "", "bg_mode": "surface",
+    "surface": "void", "base": "", "bg_mode": "surface", "motion": "none",
     "gradient": "", "angle": 160, "pattern": "none", "pattern_opacity": 12, "overlay": 35,
     "font": "system", "radius": 14, "font_scale": 100, "density": "comfortable",
     "glow": True, "starfield": True, "look_name": "",
 }
 LOOK_KEYS = tuple(LOOK_DEFAULTS)
 ENUMS = {
-    "bg_mode": ("surface", "gradient", "image"),
+    "bg_mode": ("surface", "gradient", "media"),     # media = an imported image / GIF / video
+    "motion": ("none", "flow", "aurora"),
     "pattern": ("none", "grid", "dots", "lines"),
     "font": ("system", "rounded", "mono", "serif"),
     "density": ("comfortable", "compact"),
@@ -148,140 +148,103 @@ def sanitize(patch: dict) -> dict:
     return out
 
 
-# ------------------------------------------------------------------ moods
+# ------------------------------------------------------------------ themes
+# Each theme is a complete look. Applying one resets every look setting to its default first, so
+# themes never inherit leftovers from the previous one (text size and density are left alone).
 
-MOODS = {
-    "ocean":    {"look_name": "Ocean", "accent": "#0ea5e9", "accent2": "#14b8a6", "base": "#04121c", "bg_mode": "gradient", "gradient": "#03111c,#06304a,#04121c", "angle": 170, "pattern": "none"},
-    "forest":   {"look_name": "Forest", "accent": "#22c55e", "accent2": "#84cc16", "base": "#06120a", "bg_mode": "gradient", "gradient": "#06120a,#0f2a17,#06120a", "angle": 160},
-    "sunset":   {"look_name": "Sunset", "accent": "#f97316", "accent2": "#ec4899", "base": "#150811", "bg_mode": "gradient", "gradient": "#1a0b14,#3b1230,#2b1208", "angle": 200},
-    "cyberpunk": {"look_name": "Cyberpunk", "accent": "#e11d9b", "accent2": "#06b6d4", "base": "#09060f", "bg_mode": "surface", "pattern": "grid", "pattern_opacity": 10, "radius": 4, "font": "mono", "starfield": False},
-    "neon":     {"look_name": "Neon", "accent": "#22d3ee", "accent2": "#a3e635", "base": "#040a10", "pattern": "dots", "pattern_opacity": 14, "glow": True},
-    "sakura":   {"look_name": "Sakura", "accent": "#f472b6", "accent2": "#fb7185", "base": "#160a12", "bg_mode": "gradient", "gradient": "#1a0b14,#2f1224", "angle": 150, "font": "rounded", "radius": 20},
-    "lava":     {"look_name": "Lava", "accent": "#ef4444", "accent2": "#f59e0b", "base": "#120706", "bg_mode": "gradient", "gradient": "#120706,#2e0d08,#120706", "angle": 190},
-    "ice":      {"look_name": "Ice", "accent": "#38bdf8", "accent2": "#a5b4fc", "base": "#07111c", "bg_mode": "gradient", "gradient": "#07111c,#0e2236", "angle": 160, "pattern": "lines", "pattern_opacity": 6},
-    "mono":     {"look_name": "Monochrome", "accent": "#a1a1aa", "accent2": "#71717a", "base": "#09090b", "bg_mode": "surface", "starfield": False, "glow": False},
-    "galaxy":   {"look_name": "Galaxy", "accent": "#8b5cf6", "accent2": "#3b82f6", "base": "#070514", "bg_mode": "gradient", "gradient": "#070514,#1a0f3a,#0a1230", "angle": 135, "starfield": True},
-    "aurora":   {"look_name": "Aurora", "accent": "#2dd4bf", "accent2": "#a78bfa", "base": "#050f14", "bg_mode": "gradient", "gradient": "#050f14,#0b2a2a,#1a1040", "angle": 170, "starfield": True},
-    "mint":     {"look_name": "Mint", "accent": "#34d399", "accent2": "#2dd4bf", "base": "#05120f", "bg_mode": "surface", "font": "rounded"},
-    "desert":   {"look_name": "Desert", "accent": "#d97706", "accent2": "#e11d48", "base": "#150e08", "bg_mode": "gradient", "gradient": "#150e08,#2b1b0c", "angle": 175, "font": "serif"},
-    "candy":    {"look_name": "Candy", "accent": "#ec4899", "accent2": "#8b5cf6", "base": "#14081a", "pattern": "dots", "pattern_opacity": 10, "radius": 24, "font": "rounded"},
-    "oled":     {"look_name": "OLED Black", "base": "#000000", "bg_mode": "surface", "surface": "oled", "starfield": False},
+def _t(name, accent, accent2, base="", **kw):
+    return {"name": name, "accent": accent, "accent2": accent2, "base": base, **kw}
+
+
+THEMES = {
+    # the original accent-only themes
+    "nova":     _t("Nova Violet", "#8b5cf6", "#c026d3"),
+    "nebula":   _t("Nebula Magenta", "#d946ef", "#7c3aed"),
+    "ultra":    _t("Ultraviolet", "#a855f7", "#6366f1"),
+    "midnight": _t("Midnight Indigo", "#6366f1", "#a855f7"),
+    "orchid":   _t("Orchid", "#c084fc", "#f472b6"),
+    "amethyst": _t("Amethyst", "#9333ea", "#db2777"),
+    # full looks
+    "ocean":    _t("Ocean", "#0ea5e9", "#14b8a6", "#04121c", bg_mode="gradient", gradient="#03111c,#06304a,#04121c", angle=170),
+    "deepsea":  _t("Deep Sea", "#38bdf8", "#2dd4bf", "#030c14", bg_mode="gradient", gradient="#030c14,#052a3f,#031a2a", angle=180, motion="flow", starfield=False),
+    "forest":   _t("Forest", "#22c55e", "#84cc16", "#06120a", bg_mode="gradient", gradient="#06120a,#0f2a17,#06120a", angle=160),
+    "matrix":   _t("Matrix", "#22c55e", "#16a34a", "#020a04", pattern="grid", pattern_opacity=9, font="mono", radius=2, starfield=False),
+    "sunset":   _t("Sunset", "#f97316", "#ec4899", "#150811", bg_mode="gradient", gradient="#1a0b14,#3b1230,#2b1208", angle=200),
+    "ember":    _t("Ember", "#f97316", "#ef4444", "#120706", bg_mode="gradient", gradient="#120706,#2e0d08,#120706", angle=190, motion="aurora"),
+    "lava":     _t("Lava", "#ef4444", "#f59e0b", "#120706", bg_mode="gradient", gradient="#120706,#2e0d08,#120706", angle=190),
+    "cyberpunk": _t("Cyberpunk", "#e11d9b", "#06b6d4", "#09060f", pattern="grid", pattern_opacity=10, radius=4, font="mono", starfield=False),
+    "synthwave": _t("Synthwave", "#f472b6", "#22d3ee", "#0d0620", bg_mode="gradient", gradient="#1a0b2e,#0b1a3a,#12062a", angle=180, pattern="grid", pattern_opacity=8, motion="flow", starfield=False),
+    "neon":     _t("Neon", "#22d3ee", "#a3e635", "#040a10", pattern="dots", pattern_opacity=14),
+    "sakura":   _t("Sakura", "#f472b6", "#fb7185", "#160a12", bg_mode="gradient", gradient="#1a0b14,#2f1224", angle=150, font="rounded", radius=20),
+    "candy":    _t("Candy", "#ec4899", "#8b5cf6", "#14081a", pattern="dots", pattern_opacity=10, radius=24, font="rounded"),
+    "ice":      _t("Ice", "#38bdf8", "#a5b4fc", "#07111c", bg_mode="gradient", gradient="#07111c,#0e2236", angle=160, pattern="lines", pattern_opacity=6),
+    "mono":     _t("Monochrome", "#a1a1aa", "#71717a", "#09090b", starfield=False, glow=False),
+    "oled":     _t("OLED Black", "#8b5cf6", "#c026d3", "#000000", surface="oled", starfield=False),
+    "galaxy":   _t("Galaxy", "#8b5cf6", "#3b82f6", "#070514", bg_mode="gradient", gradient="#070514,#1a0f3a,#0a1230", angle=135),
+    "aurora":   _t("Aurora", "#2dd4bf", "#a78bfa", "#050f14", bg_mode="gradient", gradient="#050f14,#0b2a2a,#1a1040", angle=170, motion="aurora"),
+    "mint":     _t("Mint", "#34d399", "#2dd4bf", "#05120f", font="rounded"),
+    "desert":   _t("Desert", "#d97706", "#e11d48", "#150e08", bg_mode="gradient", gradient="#150e08,#2b1b0c", angle=175, font="serif"),
+    "rosegold": _t("Rose Gold", "#fb7185", "#f59e0b", "#140a0c", bg_mode="gradient", gradient="#140a0c,#2a1418", angle=165, font="serif", radius=18),
+    "terminal": _t("Terminal", "#4ade80", "#22d3ee", "#050805", font="mono", radius=0, pattern="lines", pattern_opacity=5, starfield=False, glow=False),
 }
-MOOD_ALIASES = {"sea": "ocean", "water": "ocean", "blue lagoon": "ocean", "nature": "forest", "jungle": "forest", "woods": "forest",
-                "sunrise": "sunset", "dusk": "sunset", "synthwave": "cyberpunk", "retro": "cyberpunk", "vaporwave": "cyberpunk",
-                "cherry": "sakura", "blossom": "sakura", "fire": "lava", "volcano": "lava", "snow": "ice", "winter": "ice",
-                "frost": "ice", "gray": "mono", "grey": "mono", "greyscale": "mono", "black and white": "mono", "space": "galaxy",
-                "cosmic": "galaxy", "northern lights": "aurora", "sand": "desert", "sweet": "candy", "pitch black": "oled", "amoled": "oled"}
-
-COLORS = {
-    "red": "#ef4444", "crimson": "#dc2626", "orange": "#f97316", "amber": "#f59e0b", "yellow": "#eab308", "gold": "#d4a017",
-    "lime": "#84cc16", "green": "#22c55e", "emerald": "#10b981", "teal": "#14b8a6", "cyan": "#06b6d4", "turquoise": "#2dd4bf",
-    "sky": "#38bdf8", "blue": "#3b82f6", "navy": "#1e3a8a", "indigo": "#6366f1", "violet": "#8b5cf6", "purple": "#a855f7",
-    "magenta": "#d946ef", "fuchsia": "#d946ef", "pink": "#ec4899", "rose": "#f43f5e", "coral": "#fb7185", "brown": "#a16207",
-    "white": "#e5e7eb", "silver": "#a1a1aa", "slate": "#64748b", "lavender": "#a78bfa", "mint": "#34d399", "peach": "#fb923c",
-}
+_KEEP_USER = ("font_scale", "density")      # accessibility choices a theme never overrides
+MAX_USER_THEMES = 30
 
 
-def _find_colors(text: str) -> list[tuple[str, str]]:
-    found = []
-    for m in re.finditer(r"#[0-9a-fA-F]{6}\b|\b[a-z]+\b", text):
-        w = m.group(0)
-        if w.startswith("#"):
-            found.append((w.lower(), w.lower()))
-        elif w in COLORS:
-            found.append((w, COLORS[w]))
-    return found
+def theme_patch(theme: dict) -> dict:
+    """The full set of look settings for one theme, validated."""
+    base = {k: v for k, v in LOOK_DEFAULTS.items() if k not in _KEEP_USER}
+    base.update({k: v for k, v in theme.items() if k != "name"})
+    base["look_name"] = theme.get("name", "")
+    return sanitize(base)
 
 
-HELP = ("I can restyle Nova from plain words. Try: “ocean theme”, “dark red with a grid”, "
-        "“purple to blue gradient”, “sharper corners”, “no stars”, “bigger text”, "
-        "“monospace font”, or “reset”. For free-form requests, add a Claude API key below and I'll understand anything.")
+def _user_file():
+    from . import paths
+    return paths.data_dir() / "themes.json"
 
 
-def offline_respond(text: str, current: dict) -> tuple[str, dict]:
-    """A keyword-based theme assistant that needs no internet and no key."""
-    t = " " + re.sub(r"[^\w#\s'-]", " ", text.lower()) + " "
-    patch: dict = {}
-    notes: list[str] = []
+def load_user_themes() -> list[dict]:
+    from .util import read_json
+    data = read_json(_user_file(), {}) or {}
+    out = []
+    for t in data.get("themes", []):
+        if isinstance(t, dict) and isinstance(t.get("id"), str) and isinstance(t.get("look"), dict):
+            out.append({"id": t["id"], "name": str(t.get("name", "My theme"))[:40], "look": sanitize(t["look"])})
+    return out
 
-    if re.search(r"\b(reset|default|original|start over)\b", t):
-        return "Back to Nova's original look.", dict(LOOK_DEFAULTS)
 
-    mood = next((m for m in MOODS if f" {m} " in t), None) or next((v for k, v in MOOD_ALIASES.items() if f" {k} " in t), None)
-    if mood:
-        patch.update(MOODS[mood])
-        notes.append(f"{MOODS[mood]['look_name']} look")
+def save_user_theme(name: str, current: dict) -> dict:
+    """Save the current look under a name (replacing a theme with the same name)."""
+    import re as _re
+    import uuid
+    from .util import NovaError, write_json
+    name = _re.sub(r"[^\w .,'&-]", "", name or "").strip()[:40]
+    if not name:
+        raise NovaError("Give the theme a name.")
+    look = {k: current[k] for k in LOOK_KEYS if k in current and k not in ("theme_preset", "look_name")}
+    if look.get("bg_mode") == "media":      # imported files stay on this computer, not in the theme
+        look["bg_mode"] = "gradient" if look.get("gradient") else "surface"
+    themes = load_user_themes()
+    existing = next((t for t in themes if t["name"].lower() == name.lower()), None)
+    if existing is None and len(themes) >= MAX_USER_THEMES:
+        raise NovaError(f"You can keep up to {MAX_USER_THEMES} saved themes. Delete one first.")
+    entry = existing or {"id": "my-" + uuid.uuid4().hex[:8], "name": name}
+    entry["name"], entry["look"] = name, sanitize(look)
+    if existing is None:
+        themes.append(entry)
+    write_json(_user_file(), {"themes": themes})
+    return entry
 
-    colors = _find_colors(t)
-    wants_gradient = bool(re.search(r"\b(gradient|fade|blend|to)\b", t)) and len(colors) >= 2
-    bg_words = re.search(r"\b(background|backdrop|wallpaper)\b", t)
-    if wants_gradient:
-        a, b = colors[0][1], colors[1][1]
-        patch.update({"bg_mode": "gradient", "gradient": f"{clamp_dark(a, 0.25)},{clamp_dark(b, 0.25)}", "accent": a, "accent2": b,
-                      "theme_preset": "custom"})
-        notes.append(f"{colors[0][0]} → {colors[1][0]} gradient")
-    elif colors:
-        name, hexv = colors[0]
-        if mood:   # "ocean blue": keep the mood's background, just retint the accents
-            pal = palette_from(hexv)
-            patch.update({"accent": pal["accent"], "accent2": pal["accent2"], "theme_preset": "custom"})
-            notes.append(f"{name} accent")
-        elif bg_words and not re.search(r"\baccent\b", t):
-            patch.update({"base": hexv, "bg_mode": "surface"})
-            notes.append(f"{name} background")
-        else:
-            patch.update(palette_from(hexv))
-            if len(colors) > 1:
-                patch["accent2"] = clamp_accent(colors[1][1])
-            notes.append(f"{name} accent")
 
-    for pat in ("grid", "dots", "lines"):
-        if f" {pat} " in t and not re.search(rf"\bno {pat}\b", t):
-            patch.update({"pattern": pat, "pattern_opacity": 12})
-            notes.append(f"{pat} pattern")
-    if re.search(r"\b(no|remove|without|hide) (pattern|grid|dots|lines)\b", t):
-        patch["pattern"] = "none"
-        notes.append("pattern removed")
+def delete_user_theme(tid: str) -> None:
+    from .util import write_json
+    write_json(_user_file(), {"themes": [t for t in load_user_themes() if t["id"] != tid]})
 
-    if re.search(r"\b(no|remove|without|hide|turn off|disable) (the )?(stars|starfield)\b", t):
-        patch["starfield"] = False; notes.append("stars off")
-    elif re.search(r"\b(stars|starfield)\b", t):
-        patch["starfield"] = True; notes.append("stars on")
-    if re.search(r"\b(no|remove|without|turn off|disable) (the )?glow\b", t):
-        patch["glow"] = False; notes.append("glow off")
-    elif re.search(r"\b(more|extra|stronger|add|turn on) glow\b|\bglowy\b", t):
-        patch["glow"] = True; notes.append("glow on")
 
-    if re.search(r"\b(sharper|sharp|square|squarer|angular|boxy|less round)\b", t):
-        patch["radius"] = 3 if re.search(r"\b(square|boxy)\b", t) else max(0, int(current.get("radius", 14)) - 8); notes.append("sharper corners")
-    elif re.search(r"\b(rounder|round|rounded|softer|bubbly|pill)\b", t) and "font" not in t:
-        patch["radius"] = 26 if re.search(r"\b(bubbly|pill)\b", t) else min(28, int(current.get("radius", 14)) + 8); notes.append("rounder corners")
-
-    if re.search(r"\b(bigger|larger|increase|big)\b.*\b(text|font|ui)\b|\b(text|font)\b.*\b(bigger|larger)\b", t):
-        patch["font_scale"] = min(125, int(current.get("font_scale", 100)) + 10); notes.append("bigger text")
-    elif re.search(r"\b(smaller|tiny|reduce|small)\b.*\b(text|font|ui)\b|\b(text|font)\b.*\b(smaller)\b", t):
-        patch["font_scale"] = max(85, int(current.get("font_scale", 100)) - 10); notes.append("smaller text")
-    if re.search(r"\bcompact\b", t):
-        patch["density"] = "compact"; notes.append("compact layout")
-    elif re.search(r"\b(comfortable|roomy|spacious|airy)\b", t):
-        patch["density"] = "comfortable"; notes.append("roomy layout")
-
-    for f, words in (("mono", r"mono|monospace|code|terminal|hacker"), ("serif", r"serif|elegant|classic"),
-                     ("rounded", r"rounded font|friendly font|soft font"), ("system", r"normal font|default font|system font")):
-        if re.search(rf"\b({words})\b", t) and not (f == "mono" and mood == "mono" and "font" not in t):
-            patch["font"] = f; notes.append(f"{f} font")
-            break
-
-    if re.search(r"\bdarker\b", t) and not patch.get("base"):
-        patch["base"] = clamp_dark(_scale(current.get("base") or "#0b0816", 0.6), 0.16); notes.append("darker")
-    elif re.search(r"\b(lighter|brighter)\b", t) and not patch.get("base"):
-        patch["base"] = clamp_dark(_toward_white(current.get("base") or "#0b0816", 0.12)); notes.append("a bit lighter")
-    if re.search(r"\b(black|amoled)\b", t) and re.search(r"\b(background|oled|screen)\b", t) and not patch.get("base"):
-        patch.update({"base": "#000000", "surface": "oled"}); notes.append("pure black")
-    if re.search(r"\b(overlay|dim)\b", t):
-        patch["overlay"] = min(85, int(current.get("overlay", 35)) + 15); notes.append("dimmer background")
-
-    clean = sanitize(patch)
-    if not clean:
-        return HELP, {}
-    return "Done: " + ", ".join(notes) + ". Say “undo” to go back.", clean
+def find_theme(tid: str) -> dict | None:
+    """A built-in or saved theme by id, as a dict ready for theme_patch(); None if unknown."""
+    if tid in THEMES:
+        return THEMES[tid]
+    t = next((t for t in load_user_themes() if t["id"] == tid), None)
+    return {**t["look"], "name": t["name"]} if t else None

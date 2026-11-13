@@ -6,14 +6,7 @@ import re
 from . import config, look, paths
 from .util import NovaError, read_json, write_json
 
-THEME_PRESETS = {
-    "nova":      {"name": "Nova Violet", "accent": "#8b5cf6", "accent2": "#c026d3"},
-    "nebula":    {"name": "Nebula Magenta", "accent": "#d946ef", "accent2": "#7c3aed"},
-    "ultra":     {"name": "Ultraviolet", "accent": "#a855f7", "accent2": "#6366f1"},
-    "midnight":  {"name": "Midnight Indigo", "accent": "#6366f1", "accent2": "#a855f7"},
-    "orchid":    {"name": "Orchid", "accent": "#c084fc", "accent2": "#f472b6"},
-    "amethyst":  {"name": "Amethyst", "accent": "#9333ea", "accent2": "#db2777"},
-}
+THEME_PRESETS = {k: {"name": v["name"], "accent": v["accent"], "accent2": v["accent2"]} for k, v in look.THEMES.items()}
 
 SURFACES = {
     "oled":   {"name": "OLED Black"},
@@ -41,9 +34,9 @@ DEFAULTS = {
     "default_memory_mode": "auto",   # auto | manual
     # custom look (validated by look.sanitize)
     "base": "", "bg_mode": "surface", "gradient": "", "angle": 160, "pattern": "none", "pattern_opacity": 12,
-    "overlay": 35, "font": "system", "look_name": "", "bg_image": False,
-    # AI theme chat
-    "ai_api_key": "", "ai_model": "claude-sonnet-5-5", "ai_engine": "auto",   # auto | offline
+    "overlay": 35, "font": "system", "look_name": "", "motion": "none",
+    "bg_media": "",                  # "", "image" or "video": what the imported background file is
+    "bg_pause_in_game": True,        # pause animated backgrounds while Minecraft is running
     "ms_client_id": "",              # Azure app (client) ID for Microsoft sign-in
     "discord_presence": True,        # Discord Rich Presence (needs Discord running)
     "discord_show_details": True,    # show instance name / version, not just "Playing Minecraft"
@@ -57,6 +50,12 @@ def load() -> dict:
     data = read_json(paths.data_dir() / "settings.json", {}) or {}
     out = dict(DEFAULTS)
     out.update({k: v for k, v in data.items() if k in DEFAULTS})
+    if out["bg_mode"] == "image":      # older versions called an imported background "image"
+        out["bg_mode"] = "media"
+        out["bg_media"] = out["bg_media"] or ("image" if (paths.data_dir() / "background.img").exists() else "")
+    if "ai_api_key" in data:           # the AI chat was removed: don't keep its API key on disk
+        data.pop("ai_api_key", None)
+        write_json(paths.data_dir() / "settings.json", {k: v for k, v in data.items() if k in DEFAULTS})
     if not str(out.get("ms_client_id", "")).strip():
         out["ms_client_id"] = config.default_ms_client_id()
     return out
@@ -79,7 +78,7 @@ def update(patch: dict) -> dict:
             v = str(v)
         if k in ("accent", "accent2") and not _HEX.match(v):
             raise NovaError("Colors must look like #8b5cf6.")
-        if k == "theme_preset" and v not in THEME_PRESETS and v != "custom":
+        if k == "theme_preset" and v not in THEME_PRESETS and v != "custom" and not v.startswith("my-"):
             raise NovaError("Unknown theme.")
         if k == "surface" and v not in SURFACES:
             raise NovaError("Unknown surface style.")
@@ -91,19 +90,13 @@ def update(patch: dict) -> dict:
             raise NovaError("Unknown density.")
         if k == "library_view" and v not in ("grid", "list"):
             raise NovaError("Unknown view.")
+        if k == "bg_media" and v not in ("", "image", "video"):
+            raise NovaError("Unknown background type.")
         if k in look.LOOK_DEFAULTS and k not in ("accent", "accent2", "theme_preset", "surface", "radius", "font_scale", "density"):
             clean = look.sanitize({k: v})
             if k not in clean:
                 raise NovaError(f"'{k}' has an invalid value.")
             v = clean[k]
-        if k == "ai_api_key":
-            v = v.strip()
-            if v and not re.fullmatch(r"[A-Za-z0-9_\-]{20,300}", v):
-                raise NovaError("That doesn't look like an API key.")
-        if k == "ai_engine" and v not in ("auto", "offline"):
-            raise NovaError("Unknown AI mode.")
-        if k == "ai_model" and not re.fullmatch(r"[A-Za-z0-9._-]{3,60}", v):
-            raise NovaError("Unknown model name.")
         if k == "discord_client_id":
             v = v.strip()
             if v and not re.fullmatch(r"\d{15,25}", v):
@@ -116,13 +109,3 @@ def update(patch: dict) -> dict:
     write_json(paths.data_dir() / "settings.json", cur)
     return cur
 
-
-SECRET_KEYS = ("ai_api_key",)
-
-
-def public(s: dict | None = None) -> dict:
-    """Settings that are safe to send to the UI: secrets replaced by a yes/no flag."""
-    s = dict(s if s is not None else load())
-    for k in SECRET_KEYS:
-        s[k + "_set"] = bool(s.pop(k, ""))
-    return s
