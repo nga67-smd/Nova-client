@@ -22,29 +22,35 @@ from pathlib import Path
 
 from . import (__version__, accounts, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths,
                settings as settingsmod, versions)
-from . import ai, look
+from . import look
 from .util import NovaError, TaskManager, human_size, dir_size, slugify
 
 MAX_UPLOAD = 2 * 1024 * 1024 * 1024
 MAX_BG_IMAGE = 8 * 1024 * 1024
+MAX_BG_VIDEO = 64 * 1024 * 1024
 
 
-def _image_type(path) -> str:
-    """The MIME type of a PNG/JPEG/WebP/GIF file judged by its first bytes, or '' if it isn't one."""
+def _media_type(path) -> tuple[str, str]:
+    """(MIME type, "image" | "video") judged by a file's first bytes, or ("", "") if it isn't a supported
+    PNG / JPEG / WebP / GIF / MP4 / WebM. The file name is never trusted, and SVG is not accepted."""
     try:
-        head = Path(path).read_bytes()[:12]
+        with open(path, "rb") as f:
+            head = f.read(16)
     except OSError:
-        return ""
+        return "", ""
     if head.startswith(b"\x89PNG\r\n\x1a\n"):
-        return "image/png"
+        return "image/png", "image"
     if head.startswith(b"\xff\xd8\xff"):
-        return "image/jpeg"
+        return "image/jpeg", "image"
     if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
-        return "image/webp"
+        return "image/webp", "image"
     if head[:6] in (b"GIF87a", b"GIF89a"):
-        return "image/gif"
-    return ""
-OPEN_SUBDIRS = {"", "mods", "resourcepacks", "shaderpacks", "screenshots", "saves", "config", "logs", "crash-reports"}
+        return "image/gif", "image"
+    if head[4:8] == b"ftyp":
+        return "video/mp4", "video"
+    if head[:4] == b"\x1a\x45\xdf\xa3":
+        return "video/webm", "video"
+    return "", ""
 
 
 class App:
@@ -73,8 +79,8 @@ class App:
         accs = accounts.load()
         return {
             "version": __version__,
-            "settings": settingsmod.public(), "look_defaults": look.LOOK_DEFAULTS,
-            "themes": settingsmod.THEME_PRESETS,
+            "settings": settingsmod.load(), "look_defaults": look.LOOK_DEFAULTS, "my_themes": look.load_user_themes(),
+            "themes": look.THEMES,
             "surfaces": settingsmod.SURFACES,
             "instances": [self.instance_view(i) for i in instances.list_all()],
             "accounts": [accounts.public(a) for a in accs["accounts"]], "selected_account": accs.get("selected"),
@@ -121,38 +127,58 @@ def build_routes(app: App):
         app.bye_at = time.time()
         return {"ok": True}
 
-    @route("POST", "/api/ai/chat")
-    def _ai_chat(ctx):
-        before = {k: v for k, v in settingsmod.load().items() if k in look.LOOK_KEYS}
-        res = ai.chat(str(ctx.body.get("message", "")), ctx.body.get("history") or [])
-        changes = res.get("changes") or {}
-        if changes:
-            settingsmod.update(changes)
-        res["before"] = {k: before[k] for k in changes if k in before}
-        res["settings"] = settingsmod.public()
-        return res
+    @route("POST", "/api/themes/apply")
+    def _theme_apply(ctx):
+        tid = str(ctx.body.get("id", ""))
+        theme = look.find_theme(tid)
+        if theme is None:
+            raise NovaError("That theme doesn't exist.")
+        patch = look.theme_patch(theme)
+        patch["theme_preset"] = tid
+        if patch.get("bg_mode") == "media" and not settingsmod.load().get("bg_media"):
+            patch["bg_mode"] = "surface"
+        return settingsmod.update(patch)
 
-    @route("POST", "/api/look/image-upload")   # "-upload" paths receive the raw file, not JSON
-    def _look_image(ctx):
+    @route("POST", "/api/themes/save")
+    def _theme_save(ctx):
+        entry = look.save_user_theme(str(ctx.body.get("name", "")), settingsmod.load())
+        settingsmod.update({"theme_preset": entry["id"], "look_name": entry["name"]})
+        return {"theme": entry, "my_themes": look.load_user_themes(), "settings": settingsmod.load()}
+
+    @route("DELETE", "/api/themes/<tid>")
+    def _theme_delete(ctx, tid):
+        look.delete_user_theme(tid)
+        if settingsmod.load().get("theme_preset") == tid:
+            settingsmod.update({"theme_preset": "custom"})
+        return {"my_themes": look.load_user_themes(), "settings": settingsmod.load()}
+
+    @route("POST", "/api/look/media-upload")   # "-upload" paths receive the raw file, not JSON
+    def _look_media(ctx):
         n = int(ctx.header("Content-Length") or 0)
-        if n <= 0 or n > MAX_BG_IMAGE:
-            raise NovaError("Pick an image under 8 MB.")
+        if n <= 0 or n > MAX_BG_VIDEO:
+            raise NovaError("Pick a file under 64 MB.")
         dest = paths.data_dir() / "background.img"
-        ctx.save_upload(dest)
-        if not _image_type(dest):
-            dest.unlink(missing_ok=True)
-            raise NovaError("That isn't a PNG, JPEG, WebP or GIF image.")
-        return settingsmod.public(settingsmod.update({"bg_image": True, "bg_mode": "image"}))
+        tmp = paths.data_dir() / "background.new"
+        ctx.save_upload(tmp)
+        mime, kind = _media_type(tmp)
+        if not kind:
+            tmp.unlink(missing_ok=True)
+            raise NovaError("That isn't a PNG, JPEG, WebP, GIF, MP4 or WebM file.")
+        if kind == "image" and tmp.stat().st_size > MAX_BG_IMAGE:
+            tmp.unlink(missing_ok=True)
+            raise NovaError("Images must be under 8 MB. (Videos can be up to 64 MB.)")
+        os.replace(tmp, dest)
+        return settingsmod.update({"bg_media": kind, "bg_mode": "media"})
 
-    @route("DELETE", "/api/look/image")
-    def _look_image_delete(ctx):
+    @route("DELETE", "/api/look/media")
+    def _look_media_delete(ctx):
         (paths.data_dir() / "background.img").unlink(missing_ok=True)
         cur = settingsmod.load()
-        return settingsmod.public(settingsmod.update({"bg_image": False, "bg_mode": "surface" if cur["bg_mode"] == "image" else cur["bg_mode"]}))
+        return settingsmod.update({"bg_media": "", "bg_mode": "surface" if cur["bg_mode"] == "media" else cur["bg_mode"]})
 
     @route("POST", "/api/settings")
     def _settings(ctx):
-        return settingsmod.public(settingsmod.update(ctx.body))
+        return settingsmod.update(ctx.body)
 
     @route("GET", "/api/tasks")
     def _tasks(ctx):
@@ -552,6 +578,29 @@ def make_handler(app: App):
         def do_DELETE(self):
             self._handle("DELETE")
 
+        def _send_file_range(self, f: Path, ctype: str):
+            """Serve a file, honouring Range requests (video needs them to loop and seek)."""
+            size = f.stat().st_size
+            start, end, status = 0, size - 1, 200
+            m = re.fullmatch(r"bytes=(\d*)-(\d*)", (self.headers.get("Range") or "").strip())
+            if m and (m.group(1) or m.group(2)):
+                if m.group(1):
+                    start = int(m.group(1))
+                    end = int(m.group(2)) if m.group(2) else size - 1
+                else:
+                    start, end = max(0, size - int(m.group(2))), size - 1
+                end = min(end, size - 1, start + 4 * 1024 * 1024 - 1)
+                if start >= size or start > end:
+                    return self._send(416, b"", "text/plain", {"Content-Range": f"bytes */{size}"})
+                status = 206
+            with open(f, "rb") as fh:
+                fh.seek(start)
+                data = fh.read(end - start + 1)
+            extra = {"Accept-Ranges": "bytes"}
+            if status == 206:
+                extra["Content-Range"] = f"bytes {start}-{end}/{size}"
+            self._send(status, data, ctype, extra)
+
         # -- static files
         def _static(self, path: str, query: dict):
             ui = paths.ui_dir().resolve()
@@ -568,10 +617,10 @@ def make_handler(app: App):
             if path == "/background":
                 t = (query.get("t") or [""])[0]
                 f = paths.data_dir() / "background.img"
-                ctype = _image_type(f) if hmac.compare_digest(t, app.token) else ""
+                ctype = _media_type(f)[0] if hmac.compare_digest(t, app.token) else ""
                 if not ctype:
                     return self._send(404, b"Not found", "text/plain")
-                return self._send(200, f.read_bytes(), ctype)
+                return self._send_file_range(f, ctype)
             rel = path.lstrip("/")
             if rel.startswith("static/"):
                 rel = rel[len("static/"):]
