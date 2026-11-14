@@ -113,7 +113,9 @@ def _api(path: str, params: dict | None = None):
             except OSError:
                 detail = ""
             raise NovaError(f"CurseForge rejected the API key (HTTP {e.code}{': ' + detail if detail else ''}). "
-                            "Paste the whole key from console.curseforge.com → API keys (it usually starts with $2a$10$).") from e
+                            f"Nova sent a key of {len(key)} characters starting with “{key[:4]}”. "
+                            "A real key is about 60 characters and starts with $2a$10$ — copy it from console.curseforge.com → "
+                            "API keys (not the upload token from authors.curseforge.com).") from e
         if e.code == 404:
             raise NovaError("CurseForge doesn't have that project.") from e
         if e.code == 429:
