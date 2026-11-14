@@ -41,12 +41,19 @@ def find_app_browser() -> str | None:
     return None
 
 
-def open_window(url: str) -> subprocess.Popen | None:
+def _software_marker() -> Path:
+    return paths.data_dir() / "software_render"
+
+
+def open_window(url: str, software: bool = False) -> subprocess.Popen | None:
     browser = os.environ.get("NOVA_BROWSER") or find_app_browser()
     if browser:
         profile = paths.sub("webview")
         args = [browser, f"--app={url}", f"--user-data-dir={profile}", "--window-size=1320,860",
                 "--no-first-run", "--no-default-browser-check", "--disable-features=Translate"]
+        if software or _software_marker().exists():
+            # Some PCs show a blank gray window with hardware drawing; software drawing always works.
+            args += ["--disable-gpu", "--disable-gpu-compositing",]
         try:
             return subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError:
@@ -127,6 +134,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--port", type=int, default=0)
     ap.add_argument("--home", help="data folder (default: your user data directory)")
     ap.add_argument("--reset-look", action="store_true", help="turn off animated / imported backgrounds (if the window comes up blank)")
+    ap.add_argument("--software-render", action="store_true", help="draw the window without the GPU (fixes a blank gray window)")
     ap.add_argument("--version", action="store_true")
     args = ap.parse_args(argv)
     if args.version:
@@ -151,12 +159,26 @@ def main(argv: list[str] | None = None) -> int:
     url = f"http://127.0.0.1:{app.port}/?t={app.token}"
     print(f"Nova Launcher {__version__} running at {url}")
     print(f"Data folder: {paths.data_dir()}")
-    if not args.no_window:
-        open_window(url)
+    if args.software_render:
+        _software_marker().write_text("1")
+    proc = open_window(url) if not args.no_window else None
+    opened_at, retried = time.time(), False
     keep = args.keep_alive or args.no_window
     try:
         while True:
             time.sleep(1.0)
+            if proc and not retried and not app.ui_ok.is_set() and time.time() - opened_at > 15 and proc.poll() is None:
+                # The window is still blank after 15 s: reopen it with software drawing, and remember to do so next time.
+                retried = True
+                print("The window didn't finish loading; reopening it without GPU acceleration.")
+                try:
+                    _software_marker().write_text("1")
+                    proc.terminate()
+                    proc.wait(5)
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+                proc = open_window(url, software=True)
+                app.last_ping = time.time()
             if keep:
                 continue
             reason = shutdown_reason(app)
