@@ -94,10 +94,18 @@ def _api(path: str, params: dict | None = None):
     url = config.curseforge_api() + path
     if params:
         url += "?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers={"x-api-key": key, "Accept": "application/json", "User-Agent": USER_AGENT})
+    # Some CDNs block unfamiliar User-Agents with a 403 that looks like a bad key, so retry once as a browser.
+    agents = (USER_AGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36")
     try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.loads(r.read().decode("utf-8"))
+        for i, ua in enumerate(agents):
+            req = urllib.request.Request(url, headers={"x-api-key": key, "Accept": "application/json", "User-Agent": ua})
+            try:
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    return json.loads(r.read().decode("utf-8"))
+            except urllib.error.HTTPError as e:
+                if e.code == 403 and i == 0:
+                    continue
+                raise
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
             try:

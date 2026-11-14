@@ -18,6 +18,7 @@ class Fake:
         self.queries = []
         self.latest = 101
         self.no_url = False
+        self.block_custom_ua = False
 
 
 def make(fake):
@@ -35,6 +36,8 @@ def make(fake):
                 self.send_response(200); self.send_header("Content-Length", str(len(JAR))); self.end_headers()
                 return self.wfile.write(JAR)
             fake.keys.append(self.headers.get("x-api-key")); fake.queries.append((u.path, q))
+            if fake.block_custom_ua and not (self.headers.get("User-Agent") or "").startswith("Mozilla"):
+                return self._json(403, {})
             if self.headers.get("x-api-key") != "K" * 32:
                 return self._json(403, {})
             base = f"http://127.0.0.1:{self.server.server_port}"
@@ -151,3 +154,10 @@ def test_modrinth_ids_still_route_to_modrinth(env, monkeypatch):
     monkeypatch.setattr(mods, "pick_version", lambda *a, **k: None)
     with pytest.raises(NovaError, match="no version"):
         mods.install_project(env[1], "sodium")
+
+
+def test_retries_as_browser_when_user_agent_is_blocked(env):
+    fake, _ = env
+    fake.block_custom_ua = True
+    curseforge.set_key("K" * 32)                      # validation call succeeds via the browser-UA retry
+    assert mods.search("cool", "1.20.1", "fabric", source="curseforge")["hits"]
