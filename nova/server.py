@@ -20,7 +20,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (__version__, accounts, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths,
+from . import (__version__, accounts, curseforge, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths,
                settings as settingsmod, versions)
 from . import look
 from .util import NovaError, TaskManager, human_size, dir_size, slugify
@@ -80,7 +80,7 @@ class App:
         return {
             "version": __version__,
             "settings": settingsmod.load(), "look_defaults": look.LOOK_DEFAULTS, "my_themes": look.load_user_themes(),
-            "themes": look.THEMES,
+            "themes": look.THEMES, "curseforge_key_set": curseforge.has_key(),
             "surfaces": settingsmod.SURFACES,
             "instances": [self.instance_view(i) for i in instances.list_all()],
             "accounts": [accounts.public(a) for a in accs["accounts"]], "selected_account": accs.get("selected"),
@@ -350,7 +350,13 @@ def build_routes(app: App):
     @route("GET", "/api/modrinth/search")
     def _search(ctx):
         return mods.search(ctx.q("q") or "", ctx.q("mc") or "", ctx.q("loader") or "", ctx.q("type") or "mod",
-                           ctx.q("sort") or "relevance", int(ctx.q("offset") or 0))
+                           ctx.q("sort") or "relevance", int(ctx.q("offset") or 0),
+                           source="curseforge" if ctx.q("source") == "curseforge" else "modrinth")
+
+    @route("POST", "/api/curseforge/key")
+    def _cf_key(ctx):
+        curseforge.set_key(str(ctx.body.get("key", "")))
+        return {"curseforge_key_set": curseforge.has_key()}
 
     # ---- optimization
     @route("GET", "/api/instances/<iid>/optimization")
