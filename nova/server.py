@@ -64,6 +64,7 @@ class App:
         self.port = 0
         self.ms_flows: dict[str, threading.Event] = {}
         self.httpd: ThreadingHTTPServer | None = None
+        self.ui_ok = threading.Event()   # set once the window has really drawn the page
 
     # ------------------------------------------------------------- state
     def instance_view(self, inst: dict) -> dict:
@@ -356,6 +357,7 @@ def build_routes(app: App):
     @route("POST", "/api/ui-ok")
     def _ui_ok(ctx):
         look.mark_ui_ok()
+        app.ui_ok.set()
         return {"ok": True}
 
     @route("POST", "/api/curseforge/key")
