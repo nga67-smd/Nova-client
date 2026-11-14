@@ -318,10 +318,9 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 #bgvideo { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0; pointer-events: none; display: none; background: #000; }
 :root[data-bg="video"] #bgvideo { display: block; }
 #bgdim { position: fixed; inset: 0; z-index: 0; pointer-events: none; background: #000; opacity: 0; }
-:root[data-bg="video"] .card, :root[data-bg="video"] .rail { backdrop-filter: blur(12px); }
 #aurora { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; display: none; }
 :root[data-motion="aurora"] #aurora { display: block; }
-#aurora span { position: absolute; width: 60vmax; height: 60vmax; border-radius: 50%; filter: blur(80px); opacity: .38; will-change: transform; }
+#aurora span { position: absolute; width: 46vmax; height: 46vmax; border-radius: 50%; filter: blur(60px); opacity: .34; will-change: transform; }
 #aurora span:nth-child(1) { background: var(--accent); left: -15vmax; top: -20vmax; animation: nova-drift1 26s ease-in-out infinite alternate; }
 #aurora span:nth-child(2) { background: var(--accent2); right: -20vmax; top: 10vh; animation: nova-drift2 32s ease-in-out infinite alternate; }
 #aurora span:nth-child(3) { background: color-mix(in srgb, var(--accent), var(--accent2)); left: 20vw; bottom: -30vmax; animation: nova-drift3 38s ease-in-out infinite alternate; }

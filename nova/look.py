@@ -248,3 +248,46 @@ def find_theme(tid: str) -> dict | None:
         return THEMES[tid]
     t = next((t for t in load_user_themes() if t["id"] == tid), None)
     return {**t["look"], "name": t["name"]} if t else None
+
+
+# ---------------------------------------------------------------- startup guard
+# If the window never finished drawing last time (heavy animated background, GPU trouble...), start with the
+# animated / imported background switched off so Nova can never get stuck on a blank window.
+
+def _guard_file():
+    from . import paths
+    return paths.data_dir() / "ui_loading"
+
+
+def mark_ui_loading() -> None:
+    try:
+        _guard_file().parent.mkdir(parents=True, exist_ok=True)
+        _guard_file().write_text("1")
+    except OSError:
+        pass
+
+
+def mark_ui_ok() -> None:
+    try:
+        _guard_file().unlink()
+    except OSError:
+        pass
+
+
+def reset_heavy_look() -> dict:
+    """Turn off imported media and motion, keeping colors, theme and everything else."""
+    from . import settings
+    cur = settings.load()
+    patch = {"motion": "none"}
+    if cur.get("bg_mode") == "media":
+        patch["bg_mode"] = "surface"
+    return settings.update(patch)
+
+
+def startup_guard() -> bool:
+    """Call once at launch. True when the last window never finished loading and the look was simplified."""
+    if not _guard_file().exists():
+        return False
+    mark_ui_ok()
+    reset_heavy_look()
+    return True

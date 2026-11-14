@@ -10,7 +10,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from . import __version__, discord, paths
+from . import __version__, discord, look, paths
 from .server import App, start_server
 
 
@@ -126,6 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--keep-alive", action="store_true", help="keep running after the window closes")
     ap.add_argument("--port", type=int, default=0)
     ap.add_argument("--home", help="data folder (default: your user data directory)")
+    ap.add_argument("--reset-look", action="store_true", help="turn off animated / imported backgrounds (if the window comes up blank)")
     ap.add_argument("--version", action="store_true")
     args = ap.parse_args(argv)
     if args.version:
@@ -136,6 +137,12 @@ def main(argv: list[str] | None = None) -> int:
     paths.data_dir().mkdir(parents=True, exist_ok=True)
     setup_logging()
     hide_child_consoles()
+    if args.reset_look:
+        look.mark_ui_ok()
+        look.reset_heavy_look()
+        print("Animated / imported background switched off.")
+    elif look.startup_guard():
+        print("The last window didn't finish loading, so the animated background was switched off.")
 
     app = App()
     presence = discord.Presence(app)

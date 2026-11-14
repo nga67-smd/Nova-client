@@ -754,6 +754,6 @@ const stars = { enabled: true, pts: [], raf: 0 };
 
 // ------------------------------------------------------------------ boot
 (async function boot() {
-  try { await loadState(); await render(); poll(); }
+  try { await loadState(); await render(); poll(); requestAnimationFrame(() => requestAnimationFrame(() => { api("/api/ui-ok", { method: "POST", body: {} }).catch(() => {}); })); }
   catch (e) { document.body.replaceChildren(el("div", { class: "empty", style: { padding: "80px 20px" } }, el("h2", {}, "Nova can't start"), el("p", {}, e.message))); }
 })();
