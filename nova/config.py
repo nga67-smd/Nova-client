@@ -48,7 +48,10 @@ def curseforge_api() -> str:
 
 
 # Optional: a CurseForge API key shipped inside Nova. Normally each user adds their own in Settings.
-BUILTIN_CURSEFORGE_KEY = ""
+try:                                   # written at build time from a GitHub secret; never committed
+    from ._secrets import CURSEFORGE_KEY as BUILTIN_CURSEFORGE_KEY
+except ImportError:
+    BUILTIN_CURSEFORGE_KEY = ""
 
 
 def adoptium_api() -> str:
