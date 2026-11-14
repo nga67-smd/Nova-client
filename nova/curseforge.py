@@ -44,7 +44,7 @@ def has_key() -> bool:
 
 
 def set_key(key: str) -> None:
-    key = (key or "").strip()
+    key = (key or "").strip().strip("\"'")
     f = _key_file()
     if not key:
         try:
@@ -55,11 +55,23 @@ def set_key(key: str) -> None:
     if len(key) < 20 or len(key) > 200 or any(c.isspace() for c in key):
         raise NovaError("That doesn't look like a CurseForge API key. Copy the whole key from console.curseforge.com.")
     f.parent.mkdir(parents=True, exist_ok=True)
+    old = f.read_text(encoding="utf-8") if f.exists() else None
     f.write_text(key, encoding="utf-8")
     try:
         os.chmod(f, 0o600)
     except OSError:
         pass
+    if os.environ.get("NOVA_CURSEFORGE_KEY"):
+        return
+    try:
+        _api(f"/games/{GAME_ID}")          # prove the key works before keeping it
+    except NovaError as e:
+        if "rejected" in str(e):
+            if old is None:
+                f.unlink(missing_ok=True)
+            else:
+                f.write_text(old, encoding="utf-8")
+            raise
 
 
 def is_id(project: str) -> bool:
@@ -88,7 +100,12 @@ def _api(path: str, params: dict | None = None):
             return json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
-            raise NovaError("CurseForge rejected the API key. Check it in Settings.") from e
+            try:
+                detail = e.read().decode("utf-8", "replace").strip().replace("\n", " ")[:120]
+            except OSError:
+                detail = ""
+            raise NovaError(f"CurseForge rejected the API key (HTTP {e.code}{': ' + detail if detail else ''}). "
+                            "Paste the whole key from console.curseforge.com → API keys (it usually starts with $2a$10$).") from e
         if e.code == 404:
             raise NovaError("CurseForge doesn't have that project.") from e
         if e.code == 429:

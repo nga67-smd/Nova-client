@@ -38,6 +38,8 @@ def make(fake):
             if self.headers.get("x-api-key") != "K" * 32:
                 return self._json(403, {})
             base = f"http://127.0.0.1:{self.server.server_port}"
+            if u.path == "/v1/games/432":
+                return self._json(200, {"data": {"id": 432}})
             if u.path == "/v1/mods/search":
                 return self._json(200, {"data": [{"id": 11, "slug": "cool", "name": "Cool Mod", "summary": "does cool",
                                                   "downloadCount": 5000, "thumbsUpCount": 3, "authors": [{"name": "Ann"}],
@@ -82,8 +84,11 @@ def test_key_storage_validation_and_env(env, tmp_path, monkeypatch):
     assert not curseforge.has_key()
     with pytest.raises(NovaError):
         curseforge.set_key("short key")
-    curseforge.set_key("K" * 32)
-    assert curseforge.has_key() and (tmp_path / "curseforge.key").exists()
+    with pytest.raises(NovaError, match="rejected"):      # wrong key is checked against CurseForge and not kept
+        curseforge.set_key("W" * 32)
+    assert not curseforge.has_key()
+    curseforge.set_key('"' + "K" * 32 + '"\n')
+    assert curseforge.get_key() == "K" * 32 and (tmp_path / "curseforge.key").exists()
     curseforge.set_key("")
     assert not curseforge.has_key()
     monkeypatch.setenv("NOVA_CURSEFORGE_KEY", "E" * 32)
@@ -93,8 +98,9 @@ def test_key_storage_validation_and_env(env, tmp_path, monkeypatch):
 def test_search_needs_key_and_rejects_bad_key(env):
     with pytest.raises(NovaError, match="API key"):
         mods.search("cool", "1.20.1", "fabric", source="curseforge")
-    curseforge.set_key("B" * 32)
     with pytest.raises(NovaError, match="rejected"):
+        curseforge.set_key("B" * 32)
+    with pytest.raises(NovaError, match="API key"):
         mods.search("cool", "1.20.1", "fabric", source="curseforge")
 
 
