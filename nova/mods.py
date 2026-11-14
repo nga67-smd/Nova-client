@@ -1,4 +1,4 @@
-"""Mod / shader / resource-pack management backed by the Modrinth API."""
+"""Mod / shader / resource-pack management backed by Modrinth and CurseForge."""
 from __future__ import annotations
 
 import json
@@ -7,7 +7,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from . import config, instances
+from . import config, curseforge, instances
 from .util import NovaError, Task, USER_AGENT, download_file, file_hash, http_get_json, read_json, write_json
 
 KINDS = {"mod": "mods", "shader": "shaderpacks", "resourcepack": "resourcepacks"}
@@ -38,9 +38,11 @@ def _post_json(path: str, body: dict):
 # ----------------------------------------------------------------- search
 
 def search(query: str, mc: str = "", loader: str = "", ptype: str = "mod", sort: str = "relevance",
-           offset: int = 0, limit: int = 20) -> dict:
+           offset: int = 0, limit: int = 20, source: str = "modrinth") -> dict:
     if ptype not in KINDS:
         raise NovaError("Unknown project type.")
+    if source == "curseforge":
+        return curseforge.search(query, mc, loader, ptype, sort, offset, limit)
     facets = [[f"project_type:{ptype}"]]
     if mc:
         facets.append([f"versions:{mc}"])
@@ -104,12 +106,63 @@ def safe_name(name: str) -> str:
     return n
 
 
+def _drop_old_copies(inst: dict, meta: dict, pid: str, fname: str) -> None:
+    """Remove older files of the same project so an update replaces instead of duplicating."""
+    for old, m in list(meta.items()):
+        if m.get("project_id") == pid and old != fname:
+            for suffix in ("", ".disabled"):
+                try:
+                    (_kind_dir(inst["id"], m.get("type", "mod")) / (old + suffix)).unlink()
+                except OSError:
+                    pass
+            meta.pop(old, None)
+
+
+def _install_curseforge(inst: dict, project: str, ptype: str, task: Task | None, seen: set, depth: int) -> list[dict]:
+    pid = f"{curseforge.PREFIX}{curseforge._num(project)}"
+    f = curseforge.pick_file(pid, inst["mc_version"], inst["loader"], ptype)
+    if not f:
+        raise NovaError(f"'{project}' has no CurseForge file for Minecraft {inst['mc_version']}"
+                        + (f" on {inst['loader'].title()}" if ptype == "mod" and inst["loader"] != "vanilla" else "") + ".")
+    if pid in seen:
+        return []
+    seen.add(pid)
+    info = curseforge.mod_info(pid)
+    title = info.get("name") or f.get("displayName") or pid
+    url, sha1 = curseforge.download_info(f)
+    fname = safe_name(f["fileName"])
+    folder = _kind_dir(inst["id"], ptype)
+    folder.mkdir(parents=True, exist_ok=True)
+    meta = _load_meta(inst["id"])
+    _drop_old_copies(inst, meta, pid, fname)
+    if task:
+        task.update(f"Installing {title}…")
+    download_file(url, folder / fname, sha1=sha1, size=f.get("fileLength"))
+    meta[fname] = {"project_id": pid, "source": "curseforge", "slug": info.get("slug", ""), "title": title,
+                   "icon_url": (info.get("logo") or {}).get("thumbnailUrl", ""),
+                   "version": f.get("displayName", ""), "version_id": str(f["id"]), "type": ptype}
+    write_json(_meta_path(inst["id"]), meta)
+    installed = [{"title": title, "file": fname, "version": f.get("displayName", "")}]
+    if ptype == "mod":
+        for dep in curseforge.required_deps(f):
+            if dep in seen or any(m.get("project_id") == dep for m in _load_meta(inst["id"]).values()):
+                seen.add(dep)
+                continue
+            try:
+                installed += _install_curseforge(inst, dep, "mod", task, seen, depth + 1)
+            except NovaError:
+                pass  # dependency without a matching build; the game will report it
+    return installed
+
+
 def install_project(inst: dict, project: str, ptype: str = "mod", task: Task | None = None,
                     _seen: set | None = None, _depth: int = 0) -> list[dict]:
     """Install a project plus its required dependencies. Returns list of installed entries."""
     seen = _seen if _seen is not None else set()
     if _depth > 6:
         return []
+    if curseforge.is_id(project):
+        return _install_curseforge(inst, project, ptype, task, seen, _depth)
     ver = pick_version(project, inst["mc_version"], inst["loader"], ptype)
     if not ver:
         raise NovaError(f"'{project}' has no version for Minecraft {inst['mc_version']}"
@@ -127,15 +180,7 @@ def install_project(inst: dict, project: str, ptype: str = "mod", task: Task | N
     folder = _kind_dir(inst["id"], ptype)
     folder.mkdir(parents=True, exist_ok=True)
     meta = _load_meta(inst["id"])
-    # drop older copies of the same project
-    for old, m in list(meta.items()):
-        if m.get("project_id") == pid and old != fname:
-            for suffix in ("", ".disabled"):
-                try:
-                    (_kind_dir(inst["id"], m.get("type", "mod")) / (old + suffix)).unlink()
-                except OSError:
-                    pass
-            meta.pop(old, None)
+    _drop_old_copies(inst, meta, pid, fname)
     if task:
         task.update(f"Installing {proj.get('title', fname)}…")
     download_file(primary["url"], folder / fname, sha1=primary.get("hashes", {}).get("sha1"),
@@ -184,7 +229,7 @@ def list_installed(inst: dict, ptype: str = "mod") -> list[dict]:
                     "size": f.stat().st_size if f.is_file() else 0,
                     "title": m.get("title") or re.sub(r"\.(jar|zip)$", "", name, flags=re.I),
                     "version": m.get("version", ""), "icon_url": m.get("icon_url", ""),
-                    "slug": m.get("slug", ""), "managed": bool(m)})
+                    "slug": m.get("slug", ""), "managed": bool(m), "source": m.get("source", "modrinth") if m else ""})
     return out
 
 
@@ -221,19 +266,21 @@ def remove(inst: dict, ptype: str, filename: str) -> None:
 
 def check_updates(inst: dict) -> list[dict]:
     """Ask Modrinth whether newer builds exist for installed mods (matched by file hash)."""
+    out = _check_curseforge_updates(inst)
     folder = _kind_dir(inst["id"], "mod")
+    cf_files = {fn for fn, m in _load_meta(inst["id"]).items() if m.get("source") == "curseforge"}
     hashes: dict[str, str] = {}
     if folder.exists():
         for f in folder.glob("*.jar"):
-            hashes[file_hash(f, "sha1")] = f.name
+            if f.name not in cf_files:
+                hashes[file_hash(f, "sha1")] = f.name
     if not hashes:
-        return []
+        return out
     body = {"hashes": list(hashes), "algorithm": "sha1", "game_versions": [inst["mc_version"]]}
     cats = loader_categories(inst["loader"])
     if cats:
         body["loaders"] = cats
     res = _post_json("/version_files/update", body)
-    out = []
     for h, ver in res.items():
         files = ver.get("files", [])
         primary = next((f for f in files if f.get("primary")), files[0] if files else None)
@@ -241,6 +288,23 @@ def check_updates(inst: dict) -> list[dict]:
             continue
         if primary.get("hashes", {}).get("sha1", "").lower() != h.lower() and ver.get("version_type") != "alpha":
             out.append({"file": hashes[h], "project_id": ver["project_id"], "new_version": ver.get("version_number", "")})
+    return out
+
+
+def _check_curseforge_updates(inst: dict) -> list[dict]:
+    """CurseForge-installed mods: compare the installed file id with the newest matching file."""
+    out = []
+    mine = {fn: m for fn, m in _load_meta(inst["id"]).items()
+            if m.get("source") == "curseforge" and m.get("type", "mod") == "mod" and (_kind_dir(inst["id"], "mod") / fn).exists()}
+    if not mine or not curseforge.has_key():
+        return out
+    for fn, m in mine.items():
+        try:
+            f = curseforge.pick_file(m["project_id"], inst["mc_version"], inst["loader"], "mod")
+        except NovaError:
+            continue
+        if f and str(f["id"]) != str(m.get("version_id")) and f.get("releaseType", 1) < 3:
+            out.append({"file": fn, "project_id": m["project_id"], "new_version": f.get("displayName", "")})
     return out
 
 

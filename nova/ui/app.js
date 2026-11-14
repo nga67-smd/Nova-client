@@ -391,7 +391,7 @@ async function tabMods(p, i) {
     el("button", { class: "btn", onclick: () => api(`/api/instances/${i.id}/open-folder`, { method: "POST", body: { sub: "mods" } }).catch(fail) }, icon("folder"), "Mods folder"),
     el("button", { class: "btn", id: "chk", onclick: async (e) => { e.target.disabled = true; try { const r = await api(`/api/instances/${i.id}/mods/updates`); if (!r.updates.length) toast("Everything is up to date.", "ok"); else confirmDialog(`${r.updates.length} update${r.updates.length === 1 ? "" : "s"} available`, r.updates.map((u) => `${u.file} → ${u.new_version}`).join("\n"), "Update all", async () => { const t = await api(`/api/instances/${i.id}/mods/update-all`, { method: "POST", body: {} }); runTask(t.task, () => render()); poll(); }, false); } catch (x) { fail(x); } e.target.disabled = false; } }, icon("refresh"), "Check updates"),
     el("button", { class: "btn primary", onclick: () => { S.discover.inst = i.id; go("discover"); } }, icon("plus"), "Add mods")));
-  if (!list.items.length) { p.append(el("div", { class: "empty" }, el("h2", {}, "No mods yet"), el("p", {}, "Browse Modrinth for mods that match this instance's version and loader."), el("button", { class: "btn primary", onclick: () => { S.discover.inst = i.id; go("discover"); } }, "Browse mods"))); return; }
+  if (!list.items.length) { p.append(el("div", { class: "empty" }, el("h2", {}, "No mods yet"), el("p", {}, "Browse Modrinth or CurseForge for mods that match this instance's version and loader."), el("button", { class: "btn primary", onclick: () => { S.discover.inst = i.id; go("discover"); } }, "Browse mods"))); return; }
   p.append(...list.items.map((m) => itemRow(i, "mod", m)));
 }
 function itemRow(i, type, m) {
@@ -543,7 +543,20 @@ async function tabConsole(p, i) {
 }
 
 // ------------------------------------------------------------------ discover
-S.discover = { q: "", type: "mod", sort: "relevance", inst: null, results: null, offset: 0, total: 0, loading: false };
+function cfKeyRow() {
+  const k = el("input", { type: "password", placeholder: S.data.curseforge_key_set ? "Key saved. Paste a new one to replace it" : "Paste your CurseForge API key", autocomplete: "off", spellcheck: "false", "aria-label": "CurseForge API key" });
+  const go = async (v) => { try { await api("/api/curseforge/key", { method: "POST", body: { key: v } }); await loadState(); toast(v ? "CurseForge key saved." : "CurseForge key removed.", "ok"); render(); } catch (e) { fail(e); } };
+  return el("div", { class: "row" }, el("div", { class: "grow" }, k), el("button", { class: "btn", onclick: () => k.value.trim() && go(k.value.trim()) }, "Save"),
+    S.data.curseforge_key_set ? el("button", { class: "btn ghost", onclick: () => go("") }, "Remove") : null);
+}
+function curseforgeSetup(done) {
+  const key = el("input", { type: "password", placeholder: "Paste your CurseForge API key", autocomplete: "off", spellcheck: "false", "aria-label": "CurseForge API key" });
+  const save = async () => { try { await api("/api/curseforge/key", { method: "POST", body: { key: key.value } }); await loadState(); toast(S.data.curseforge_key_set ? "CurseForge connected." : "Key removed.", "ok"); done(); } catch (e) { fail(e); } };
+  return el("div", { class: "card section", style: { "max-width": "640px" } }, el("h2", {}, "Connect CurseForge"),
+    el("p", { class: "muted small", style: { margin: "6px 0 12px" } }, "CurseForge requires a free personal API key. Sign in at ", el("a", { href: "https://console.curseforge.com/", target: "_blank", rel: "noopener" }, "console.curseforge.com"), ", open API keys, and copy the key. It stays on this computer and is only sent to CurseForge."),
+    el("div", { class: "row" }, el("div", { class: "grow" }, key), el("button", { class: "btn primary", onclick: save }, "Save key")));
+}
+S.discover = { q: "", source: "modrinth", type: "mod", sort: "relevance", inst: null, results: null, offset: 0, total: 0, loading: false };
 async function pageDiscover(v) {
   const D = S.discover, insts = S.data.instances;
   if (!D.inst || !instById(D.inst)) D.inst = insts[0]?.id || null;
@@ -551,25 +564,28 @@ async function pageDiscover(v) {
   const inst = instById(D.inst);
   const results = el("div");
   const search = async (append = false) => {
-    if (D.loading) return; D.loading = true;
-    if (!append) { D.offset = 0; results.replaceChildren(el("div", { class: "muted" }, el("span", { class: "spinner" }), " Searching Modrinth…")); }
+    if (D.source === "curseforge" && !S.data.curseforge_key_set) { results.replaceChildren(curseforgeSetup(() => { render(); })); return; }
+    if (D.loading && append) return;
+    const my = D.seq = (D.seq || 0) + 1; D.loading = true;
+    if (!append) { D.offset = 0; results.replaceChildren(el("div", { class: "muted" }, el("span", { class: "spinner" }), D.source === "curseforge" ? " Searching CurseForge…" : " Searching Modrinth…")); }
     try {
-      const qs = new URLSearchParams({ q: D.q, mc: inst.mc_version, loader: inst.loader, type: D.type, sort: D.sort, offset: D.offset });
-      const r = await api("/api/modrinth/search?" + qs); D.total = r.total;
+      const qs = new URLSearchParams({ q: D.q, mc: inst.mc_version, loader: inst.loader, type: D.type, sort: D.sort, offset: D.offset, source: D.source });
+      const r = await api("/api/modrinth/search?" + qs); if (my !== D.seq) return; D.total = r.total;
       if (!append) results.replaceChildren();
       results.querySelector(".more")?.remove();
       if (!r.hits.length && !append) results.append(el("div", { class: "empty" }, el("h2", {}, "No matches"), el("p", {}, `Nothing found for Minecraft ${inst.mc_version}${D.type === "mod" && inst.loader !== "vanilla" ? " on " + LOADER_NAMES[inst.loader] : ""}. Try another search.`)));
       r.hits.forEach((h) => results.append(resultRow(h, inst)));
       D.offset += r.hits.length;
       if (D.offset < D.total) results.append(el("div", { class: "more row", style: { "justify-content": "center", "margin-top": "16px" } }, el("button", { class: "btn", onclick: () => search(true) }, "Show more")));
-    } catch (e) { results.replaceChildren(el("div", { class: "notice warn" }, e.message)); }
-    D.loading = false;
+    } catch (e) { if (my === D.seq) results.replaceChildren(el("div", { class: "notice warn" }, e.message)); }
+    if (my === D.seq) D.loading = false;
   };
   const q = el("input", { type: "search", placeholder: D.type === "mod" ? "Search mods" : D.type === "shader" ? "Search shader packs" : "Search resource packs", value: D.q, "aria-label": "Search" });
   let tm; q.addEventListener("input", () => { D.q = q.value; clearTimeout(tm); tm = setTimeout(() => search(), 350); });
-  v.append(el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Discover"), el("p", {}, "Search Modrinth. Results are filtered to what works in the selected instance.")),
+  v.append(el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Discover"), el("p", {}, "Search Modrinth or CurseForge. Results are filtered to what works in the selected instance.")),
     el("div", { style: { width: "260px" } }, select(insts.map((x) => [x.id, `${x.name} (${x.mc_version})`]), D.inst, (val) => { D.inst = val; render(); }))),
     el("div", { class: "row", style: { "margin-bottom": "18px" } }, el("div", { class: "grow", style: { "min-width": "220px" } }, q),
+      el("div", { class: "seg", role: "group", "aria-label": "Source" }, [["modrinth", "Modrinth"], ["curseforge", "CurseForge"]].map(([k, l]) => el("button", { "aria-pressed": String(D.source === k), onclick: () => { D.source = k; render(); } }, l))),
       el("div", { class: "seg", role: "group", "aria-label": "Type" }, [["mod", "Mods"], ["shader", "Shaders"], ["resourcepack", "Resource packs"]].map(([k, l]) => el("button", { "aria-pressed": String(D.type === k), onclick: () => { D.type = k; render(); } }, l))),
       el("div", { style: { width: "170px" } }, select([["relevance", "Most relevant"], ["downloads", "Most downloaded"], ["follows", "Most followed"], ["newest", "Newest"], ["updated", "Recently updated"]], D.sort, (s) => { D.sort = s; search(); }))),
     results);
@@ -585,7 +601,7 @@ function resultRow(h, inst) {
   };
   return el("div", { class: "result" },
     el("div", { class: "thumb", style: h.icon_url ? { "background-image": `url("${h.icon_url.replace(/"/g, "%22")}")` } : {} }, h.icon_url ? "" : "▣"),
-    el("div", { class: "info" }, el("h3", {}, h.title, el("span", { class: "muted small", style: { "font-weight": "400" } }, "by " + h.author)), el("p", {}, h.description), el("div", { class: "row", style: { gap: "6px" } }, el("span", { class: "chip plain" }, fmtNum(h.downloads) + " downloads"), ...(h.categories || []).slice(0, 3).map((c) => el("span", { class: "chip plain" }, c)))),
+    el("div", { class: "info" }, el("h3", {}, h.title, el("span", { class: "muted small", style: { "font-weight": "400" } }, "by " + h.author)), el("p", {}, h.description), el("div", { class: "row", style: { gap: "6px" } }, el("span", { class: "chip plain" }, fmtNum(h.downloads) + " downloads"), h.source === "curseforge" ? el("span", { class: "chip plain" }, "CurseForge") : null, ...(h.categories || []).slice(0, 3).map((c) => el("span", { class: "chip plain" }, c)))),
     el("div", {}, btn));
 }
 
@@ -705,6 +721,8 @@ async function pageSettings(v) {
       toggleRow("Download Java automatically", "Nova fetches the right Java version when none is installed.", s.auto_download_java, (c) => set({ auto_download_java: c })),
       toggleRow("Open console when the game starts", null, s.show_console_on_launch, (c) => set({ show_console_on_launch: c })),
       el("div", { style: { height: "14px" } }), el("div", { class: "fields" }, field("Java for every instance", javaIn, "Leave empty to let Nova choose. Instances can override this."), field("Java arguments for every instance", gj))),
+    el("div", { class: "section card" }, el("h2", {}, "CurseForge"), el("p", { class: "muted small", style: { margin: "6px 0 12px" } }, S.data.curseforge_key_set ? "Connected. CurseForge mods show up in Discover next to Modrinth." : "Not connected. Modrinth works without a key."),
+      cfKeyRow()),
     el("div", { class: "section card" }, el("h2", {}, "Discord"), el("div", { style: { height: "10px" } }),
       toggleRow("Rich Presence", "Shows \u201cPlaying Nova Launcher\u201d on your Discord profile while Nova is open. Needs the Discord desktop app running.", s.discord_presence, (c) => set({ discord_presence: c })),
       toggleRow("Show instance and version", "Turn off to only show \u201cPlaying Minecraft\u201d, with no instance name or version.", s.discord_show_details, (c) => set({ discord_show_details: c }))),

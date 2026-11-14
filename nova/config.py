@@ -43,6 +43,14 @@ def modrinth_api() -> str:
     return _e("NOVA_MODRINTH_API", "https://api.modrinth.com/v2")
 
 
+def curseforge_api() -> str:
+    return _e("NOVA_CURSEFORGE_API", "https://api.curseforge.com/v1")
+
+
+# Optional: a CurseForge API key shipped inside Nova. Normally each user adds their own in Settings.
+BUILTIN_CURSEFORGE_KEY = ""
+
+
 def adoptium_api() -> str:
     return _e("NOVA_ADOPTIUM_API", "https://api.adoptium.net/v3")
 

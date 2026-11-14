@@ -40,7 +40,15 @@ installer jar from optifine.net, since it has no public download API).
 - 27 themes, custom colors, animated and imported backgrounds (see below), three surface depths
 - Corner roundness, text size, density, starfield, glow and animation toggles
 - Separate instances with their own mods, settings, Java and JVM args
-- Duplicate, export and import instances; mod search/install/update via Modrinth
+- Duplicate, export and import instances
+- Mods, shaders and resource packs from **Modrinth and CurseForge**, with required dependencies and update checks
+
+## CurseForge
+
+Modrinth works out of the box. For CurseForge, get a free API key at https://console.curseforge.com
+and paste it in Discover (pick CurseForge) or Settings -> CurseForge. The key is stored in the data folder
+(`curseforge.key`) and only sent to api.curseforge.com. Some authors block downloads outside
+CurseForge's own site; Nova tells you when that happens. CurseForge modpacks aren't importable yet.
 
 ## Themes and animated backgrounds
 
