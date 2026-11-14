@@ -150,3 +150,23 @@ def test_import_background_flow_over_http(tmp_path, monkeypatch):
 
     assert json.loads(call("DELETE", "/api/look/media")[1])["bg_media"] == ""
     assert call("GET", "/background?t=tok123")[0] == 404
+
+
+def test_startup_guard_simplifies_look_after_unfinished_load(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOVA_HOME", str(tmp_path))
+    settings.update({"bg_mode": "media", "bg_media": "video", "motion": "aurora", "accent": "#7c3aed"})
+    assert look.startup_guard() is False                 # nothing pending: leave the look alone
+    look.mark_ui_loading()
+    assert look.startup_guard() is True
+    s = settings.load()
+    assert s["bg_mode"] == "surface" and s["motion"] == "none" and s["accent"] == "#7c3aed"
+    assert look.startup_guard() is False                 # one-shot
+    look.mark_ui_loading(); look.mark_ui_ok()            # a page that drew clears the flag
+    assert look.startup_guard() is False
+
+
+def test_ui_ok_route_clears_guard(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOVA_HOME", str(tmp_path))
+    look.mark_ui_loading()
+    look.mark_ui_ok()
+    assert not (tmp_path / "ui_loading").exists()

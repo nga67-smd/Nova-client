@@ -353,6 +353,11 @@ def build_routes(app: App):
                            ctx.q("sort") or "relevance", int(ctx.q("offset") or 0),
                            source="curseforge" if ctx.q("source") == "curseforge" else "modrinth")
 
+    @route("POST", "/api/ui-ok")
+    def _ui_ok(ctx):
+        look.mark_ui_ok()
+        return {"ok": True}
+
     @route("POST", "/api/curseforge/key")
     def _cf_key(ctx):
         curseforge.set_key(str(ctx.body.get("key", "")))
@@ -616,6 +621,7 @@ def make_handler(app: App):
                     return self._send(403, b"Open Nova Launcher from the app window (this link needs its secret token).",
                                       "text/plain; charset=utf-8")
                 html = (ui / "index.html").read_text(encoding="utf-8").replace("__NOVA_TOKEN__", app.token)
+                look.mark_ui_loading()      # cleared by /api/ui-ok once the page has really drawn
                 return self._send(200, html.encode("utf-8"), "text/html; charset=utf-8",
                                   {"Content-Security-Policy": "default-src 'self'; img-src 'self' https: data:; "
                                                               "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; "
