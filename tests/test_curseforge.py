@@ -76,6 +76,7 @@ def make(fake):
 def env(tmp_path, monkeypatch):
     monkeypatch.setenv("NOVA_HOME", str(tmp_path))
     monkeypatch.delenv("NOVA_CURSEFORGE_KEY", raising=False)
+    monkeypatch.setattr(config, "BUILTIN_CURSEFORGE_KEY", "")   # a baked-in key must not leak into tests
     fake = Fake(); srv = make(fake)
     monkeypatch.setenv("NOVA_CURSEFORGE_API", f"http://127.0.0.1:{srv.server_port}/v1")
     inst = instances.create({"name": "T", "mc_version": "1.20.1", "loader": "fabric"})
