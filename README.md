@@ -50,6 +50,13 @@ and paste it in Discover (pick CurseForge) or Settings -> CurseForge. The key is
 (`curseforge.key`) and only sent to api.curseforge.com. Some authors block downloads outside
 CurseForge's own site; Nova tells you when that happens. CurseForge modpacks aren't importable yet.
 
+## Modes
+
+Settings -> **Mode** restyles the whole app: **Normal** is the classic Nova look (your themes and backgrounds
+apply), **Kawaii** is pink and sparkly with hearts, bows and bunnies, and **Emo** is black and gothic with
+guitars, bats, skulls and cobwebs. Kawaii and Emo use their own colors and decorations; your theme and
+background are kept for when you switch back. Decorations stop with Animations off and pause while Minecraft runs.
+
 ## Cosmetics
 
 The **Cosmetics** tab designs a Nova look: hats, face gear, chest emblems, boots and capes carrying the
