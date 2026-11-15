@@ -503,3 +503,14 @@ def test_closing_window_quits_after_grace_but_reload_does_not(tmp_path, monkeypa
     assert "Window closed" in appmod.shutdown_reason(a, now + 6)
     a.last_ping = now + 1                                               # reload: a new ping arrived after "bye"
     assert appmod.shutdown_reason(a, now + 6) is None
+
+
+def test_ui_mode_setting_validates_and_defaults(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOVA_HOME", str(tmp_path))
+    from nova import settings
+    assert settings.load()["ui_mode"] == "normal"
+    for m in ("kawaii", "emo", "normal"):
+        assert settings.update({"ui_mode": m})["ui_mode"] == m
+    with pytest.raises(NovaError):
+        settings.update({"ui_mode": "hello"})
+    assert settings.load()["ui_mode"] == "normal"       # the rejected value changed nothing

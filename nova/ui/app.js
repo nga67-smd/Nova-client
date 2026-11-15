@@ -96,7 +96,14 @@ function applyTheme() {
   st.setProperty("--radius", s.radius + "px"); st.setProperty("--scale", s.font_scale / 100);
   r.dataset.surface = s.surface; r.dataset.density = s.density;
   r.dataset.glow = s.glow ? "on" : "off"; r.dataset.anim = s.animations ? "on" : "off"; r.dataset.stars = s.starfield ? "on" : "off";
-  stars.enabled = !!s.starfield;
+  const mode = applyMode(s.ui_mode, !!s.animations);
+  stars.enabled = !!s.starfield && mode !== "kawaii";
+  if (mode !== "normal") {            // Kawaii / Emo own the whole look; your theme and backgrounds are kept for Normal
+    ["--accent", "--accent2", "--radius", "--bg-layer", "--font"].forEach((v) => st.removeProperty(v)); SURFACE_VARS.forEach((v) => st.removeProperty(v));
+    r.dataset.bg = "surface"; r.dataset.motion = "none"; r.dataset.pattern = "none";
+    const v0 = $("#bgvideo"); if (v0.dataset.src) { v0.pause(); v0.removeAttribute("src"); v0.dataset.src = ""; v0.load(); }
+    $("#bgdim").style.opacity = 0; updateBgPause(); return;
+  }
   // custom page color: derive every surface from it
   if (s.base) {
     const mix = (p) => `color-mix(in srgb, ${s.base}, white ${p}%)`;
@@ -691,6 +698,9 @@ async function pageSettings(v) {
   const javaIn = el("input", { type: "text", value: s.java_path, placeholder: "Automatic" }); javaIn.addEventListener("change", () => set({ java_path: javaIn.value.trim() }));
   const gj = el("input", { type: "text", value: s.global_jvm_args, placeholder: "-Dexample=1" }); gj.addEventListener("change", () => set({ global_jvm_args: gj.value }));
   v.append(el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Settings"), el("p", {}, "Make Nova look and behave the way you like. Changes apply instantly."))),
+    el("div", { class: "section card" }, el("h2", {}, "Mode"), el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Restyles the whole app. Normal keeps everything as is; Kawaii and Emo bring their own colors, shapes and decorations. Your theme and background are remembered for when you switch back."),
+      el("div", { class: "modes" }, Object.entries(MODES).map(([k, m]) => el("button", { class: "mode-tile", "data-preview": k, "aria-pressed": String((s.ui_mode || "normal") === k), onclick: async () => { await set({ ui_mode: k }); render(); toast(m.name + " mode on.", "ok"); } },
+        el("div", { class: "mode-art", "aria-hidden": "true" }, el("i"), el("i"), el("i")), el("b", {}, m.name), el("span", {}, m.tagline))))),
     el("div", { class: "section card" }, el("div", { class: "row" }, el("h2", { class: "grow" }, "Themes"), el("button", { class: "btn sm", onclick: saveLook }, icon("plus"), "Save current look")),
       el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Pick a theme, then change anything below. \u25b6 marks animated themes."), galBox,
       (S.data.my_themes || []).length ? el("div", {}, el("h3", { style: { margin: "18px 0 10px" } }, "My themes"), myBox) : null,
