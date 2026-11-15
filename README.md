@@ -57,6 +57,11 @@ apply), **Kawaii** is pink and sparkly with hearts, bows and bunnies, and **Emo*
 guitars, bats, skulls and cobwebs. Kawaii and Emo use their own colors and decorations; your theme and
 background are kept for when you switch back. Decorations stop with Animations off and pause while Minecraft runs.
 
+Kawaii has original chibi anime girls (sidebar and drifting around the app); Emo uses detailed guitars, a skull,
+vinyl and bats on a flat black look. Under Settings -> **Your pictures** you can add up to 8 of your own images per
+mode (PNG, JPEG, WebP, GIF, 4 MB each): they replace the sidebar art and float by in little frames. Nova does not
+fetch images from the web, so save the ones you like and add them there.
+
 ## Cosmetics
 
 The **Cosmetics** tab designs a Nova look: hats, face gear, chest emblems, boots and capes carrying the
