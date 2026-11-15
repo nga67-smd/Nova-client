@@ -35,7 +35,6 @@ DEFAULTS = {
     # custom look (validated by look.sanitize)
     "base": "", "bg_mode": "surface", "gradient": "", "angle": 160, "pattern": "none", "pattern_opacity": 12,
     "overlay": 35, "font": "system", "look_name": "", "motion": "none",
-    "ui_mode": "normal",            # "normal", "kawaii" or "emo": restyles the whole app
     "bg_media": "",                  # "", "image" or "video": what the imported background file is
     "bg_pause_in_game": True,        # pause animated backgrounds while Minecraft is running
     "ms_client_id": "",              # Azure app (client) ID for Microsoft sign-in
@@ -91,8 +90,6 @@ def update(patch: dict) -> dict:
             raise NovaError("Unknown density.")
         if k == "library_view" and v not in ("grid", "list"):
             raise NovaError("Unknown view.")
-        if k == "ui_mode" and v not in ("normal", "kawaii", "emo"):
-            raise NovaError("Unknown mode.")
         if k == "bg_media" and v not in ("", "image", "video"):
             raise NovaError("Unknown background type.")
         if k in look.LOOK_DEFAULTS and k not in ("accent", "accent2", "theme_preset", "surface", "radius", "font_scale", "density"):

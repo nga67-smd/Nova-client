@@ -21,7 +21,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (__version__, accounts, cosmetics, curseforge, hudmod, instances, modeart, java as javamod, launch, loaders, mods, msauth, optimize, paths,
+from . import (__version__, accounts, cosmetics, curseforge, hudmod, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths,
                settings as settingsmod, versions)
 from . import look
 from .util import NovaError, TaskManager, human_size, dir_size, slugify
@@ -82,7 +82,7 @@ class App:
         return {
             "version": __version__,
             "settings": settingsmod.load(), "look_defaults": look.LOOK_DEFAULTS, "my_themes": look.load_user_themes(),
-            "themes": look.THEMES, "mode_art": modeart.load(), "curseforge_key_set": curseforge.has_key(),
+            "themes": look.THEMES, "curseforge_key_set": curseforge.has_key(),
             "surfaces": settingsmod.SURFACES,
             "instances": [self.instance_view(i) for i in instances.list_all()],
             "accounts": [accounts.public(a) for a in accs["accounts"]], "selected_account": accs.get("selected"),
@@ -177,19 +177,6 @@ def build_routes(app: App):
         (paths.data_dir() / "background.img").unlink(missing_ok=True)
         cur = settingsmod.load()
         return settingsmod.update({"bg_media": "", "bg_mode": "surface" if cur["bg_mode"] == "media" else cur["bg_mode"]})
-
-    @route("POST", "/api/mode-art-upload")      # raw picture body; the mode comes from the current setting
-    def _mode_art_add(ctx):
-        n = int(ctx.header("Content-Length") or 0)
-        if n <= 0 or n > modeart.MAX_BYTES:
-            raise NovaError("Pick a picture under 4 MB.")
-        tmp = paths.data_dir() / "mode_art.new"
-        ctx.save_upload(tmp)
-        return {"mode_art": modeart.add(settingsmod.load().get("ui_mode", "normal"), tmp)}
-
-    @route("DELETE", "/api/mode-art/<pid>")
-    def _mode_art_del(ctx, pid):
-        return {"mode_art": modeart.remove(pid)}
 
     @route("POST", "/api/settings")
     def _settings(ctx):
@@ -681,12 +668,6 @@ def make_handler(app: App):
                 if not ctype:
                     return self._send(404, b"Not found", "text/plain")
                 return self._send_file_range(f, ctype)
-            if path.startswith("/modeart/"):
-                t = (query.get("t") or [""])[0]
-                hit = modeart.file_for(path[len("/modeart/"):]) if hmac.compare_digest(t, app.token) else None
-                if not hit:
-                    return self._send(404, b"Not found", "text/plain")
-                return self._send_file_range(hit[0], hit[1])
             rel = path.lstrip("/")
             if rel.startswith("static/"):
                 rel = rel[len("static/"):]
