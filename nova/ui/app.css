@@ -332,3 +332,16 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 :root[data-paused="on"] #aurora span, :root[data-paused="on"] body { animation-play-state: paused !important; }
 :root[data-anim="off"] #aurora span, :root[data-anim="off"] body { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { #aurora span, body { animation: none !important; } }
+
+/* ---- cosmetics ---- */
+.cos { display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 20px; align-items: start; }
+@media (max-width: 960px) { .cos { grid-template-columns: 1fr; } }
+.cos-preview { display: block; width: 100%; max-width: 384px; margin: 0 auto; aspect-ratio: 1; image-rendering: pixelated; border-radius: 14px;
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%), rgba(255, 255, 255, .02); border: 1px solid var(--line); }
+.cos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.cos-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 6px; border-radius: 12px; border: 1px solid var(--line2); background: var(--panel); cursor: pointer; font: inherit; color: var(--text); }
+.cos-tile canvas, .cos-none { width: 72px; height: 72px; image-rendering: pixelated; border-radius: 8px; background: rgba(255, 255, 255, .03); }
+.cos-none { display: grid; place-items: center; font-size: 1.6rem; color: var(--muted); }
+.cos-tile span { font-size: .78rem; text-align: center; line-height: 1.2; }
+.cos-tile[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.cos-tile:hover { border-color: var(--accent); }

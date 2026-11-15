@@ -10,7 +10,7 @@ import time
 from collections import deque
 from pathlib import Path
 
-from . import __version__, accounts, instances, java as javamod, loaders, msauth, optimize, paths, settings as settingsmod, versions
+from . import __version__, accounts, cosmetics, instances, java as javamod, loaders, msauth, optimize, paths, settings as settingsmod, versions
 from .util import NovaError, Task, download_file, split_args
 
 NO_WINDOW = 0x08000000 if paths.os_name() == "windows" else 0
@@ -282,6 +282,10 @@ class Registry:
         acc = msauth.ensure_fresh(acc, settingsmod.load().get("ms_client_id", ""))
         prep = ensure_ready(inst, task)
         inst = instances.get(inst["id"])
+        try:
+            cosmetics.sync_to_game(instances.game_dir(inst["id"]))
+        except OSError:
+            pass
         task.stage("Starting game", 0.95, 1.0)
         plan = build_command(inst, prep["version"], acc, prep["java"], prep["java_major"], prep["log_arg"])
         if inst.get("pre_launch", "").strip():

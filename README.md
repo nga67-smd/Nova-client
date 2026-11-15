@@ -50,6 +50,14 @@ and paste it in Discover (pick CurseForge) or Settings -> CurseForge. The key is
 (`curseforge.key`) and only sent to api.curseforge.com. Some authors block downloads outside
 CurseForge's own site; Nova tells you when that happens. CurseForge modpacks aren't importable yet.
 
+## Cosmetics
+
+The **Cosmetics** tab designs a Nova look: hats, face gear, chest emblems, boots and capes carrying the
+Nova mark, with your own main and trim colors, on top of your Minecraft skin (or an uploaded PNG, or Nova's
+default skin). Hats, face, chest and boots are painted into the skin, so **Save & use on my Minecraft account**
+(Microsoft profiles) shows them to everyone online. Minecraft can't upload custom capes, so the cape (and the
+skin, for offline profiles) is shown on your own character by the Nova in-game mod.
+
 ## Themes and animated backgrounds
 
 Settings -> Themes has 27 ready-made themes (Ocean, Cyberpunk, Synthwave, Matrix, Sakura, Galaxy,
