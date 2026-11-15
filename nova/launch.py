@@ -10,7 +10,7 @@ import time
 from collections import deque
 from pathlib import Path
 
-from . import __version__, accounts, cosmetics, instances, java as javamod, loaders, msauth, optimize, paths, settings as settingsmod, versions
+from . import __version__, accounts, cosmetics, hudmod, instances, java as javamod, loaders, msauth, optimize, paths, settings as settingsmod, versions
 from .util import NovaError, Task, download_file, split_args
 
 NO_WINDOW = 0x08000000 if paths.os_name() == "windows" else 0
@@ -284,8 +284,10 @@ class Registry:
         inst = instances.get(inst["id"])
         try:
             cosmetics.sync_to_game(instances.game_dir(inst["id"]))
-        except OSError:
-            pass
+            if cosmetics.load()["has_cape"] or cosmetics.load()["has_skin"]:
+                hudmod.ensure(inst, task)       # the mod is what shows the cape; failures must never block launching
+        except (OSError, NovaError) as e:
+            print(f"Nova mod not installed: {e}")
         task.stage("Starting game", 0.95, 1.0)
         plan = build_command(inst, prep["version"], acc, prep["java"], prep["java_major"], prep["log_arg"])
         if inst.get("pre_launch", "").strip():

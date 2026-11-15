@@ -43,6 +43,11 @@ def modrinth_api() -> str:
     return _e("NOVA_MODRINTH_API", "https://api.modrinth.com/v2")
 
 
+def hud_release_api() -> str:
+    """Where Nova finds the in-game (Fabric) mod jars built by the repo's Actions workflow."""
+    return _e("NOVA_HUD_RELEASE_API", "https://api.github.com/repos/nga67-smd/Nova-client/releases/tags/hud-latest")
+
+
 def curseforge_api() -> str:
     return _e("NOVA_CURSEFORGE_API", "https://api.curseforge.com/v1")
 

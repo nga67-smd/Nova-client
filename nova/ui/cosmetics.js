@@ -272,6 +272,14 @@ async function pageCosmetics(v) {
   const bDef = el("button", { class: "btn ghost", onclick: () => { CS.base = COS.defaultBase(CS.slim); CS.baseNote = "Nova default skin"; update(); } }, "Nova default skin");
   const bClear = el("button", { class: "btn ghost", onclick: () => confirmDialog("Reset cosmetics?", "This clears your selection and the saved skin and cape. Your Minecraft account's skin isn't touched.", "Reset", async () => { await api("/api/cosmetics/reset", { method: "POST", body: {} }); CS.loaded = false; CS.slot = null; render(); }) }, "Reset");
 
+  const fab = (S.data.instances || []).filter((i) => i.loader === "fabric" && ["1.21.1", "1.21.8"].includes(i.mc_version));
+  const modRows = fab.map((i) => { const b = el("button", { class: "btn sm" }, "Install now");
+    b.addEventListener("click", busy(b, async () => { toast("Installing the Nova mod\u2026"); const r = await api(`/api/instances/${i.id}/nova-mod`, { method: "POST", body: {} }); toast(r.status === "current" ? "Already up to date." : "Nova mod installed.", "ok"); }));
+    return el("div", { class: "row", style: { "margin-top": "6px" } }, el("span", { class: "grow" }, `${i.name} (Fabric ${i.mc_version})`), b); });
+  const modCard = el("div", { style: { "margin-top": "16px", "padding-top": "14px", "border-top": "1px solid var(--line)" } },
+    el("h3", { style: { margin: "0 0 4px" } }, "Show it in-game"),
+    el("p", { class: "muted small", style: { margin: "0 0 6px", "line-height": "1.5" } }, "The cape needs the Nova mod. Nova installs it (and Fabric API) automatically when you launch a Fabric 1.21.1 or 1.21.8 instance with a saved design. You can also install it now:"),
+    fab.length ? modRows : el("p", { class: "muted small", style: { margin: 0 } }, "No Fabric 1.21.1 / 1.21.8 instance yet. Create one in the Library."));
   refreshModel(); refreshView(); update();
   v.append(
     el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Cosmetics"), el("p", {}, "Design a Nova look: hats, face gear, chest emblems, boots and capes with the Nova mark. Colors are fully yours."))),
@@ -286,5 +294,5 @@ async function pageCosmetics(v) {
         el("div", { class: "row", style: { "flex-wrap": "wrap" } }, CS.ms ? bMine : null, bUp, bDef, bClear),
         el("p", { class: "muted small", style: { margin: "14px 0 0", "line-height": "1.5" } },
           "\u201CUse my Minecraft skin\u201D reloads your account\u2019s current skin. After you have uploaded a design, that skin already contains it, so keep editing from the saved base instead. Hats, face gear, chest and boots are painted into your skin, so “Use on my Minecraft account” shows them to everyone online (Microsoft profiles only). " +
-          "Minecraft can't upload custom capes, so the Nova cape and your skin show on your own character through the Nova in-game mod (Fabric 1.21.1 and 1.21.8)."))));
+          "Minecraft can't upload custom capes, so the Nova cape and your skin show on your own character through the Nova in-game mod."), modCard)));
 }
