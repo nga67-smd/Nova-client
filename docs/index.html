@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Nova is a fast Minecraft launcher with separate instances, Modrinth and CurseForge mods, and custom themes.">
+<title>Nova Launcher</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap">
+<style>
+/* Layout: one dark page; a star-field behind a left-aligned hero with a mock of the launcher, then plain feature rows. */
+:root{
+  --bg:#0b0816; --panel:#130e24; --raised:#1a1330; --line:#2a2145; --fg:#ece8f7; --muted:#a69fc0;
+  --accent:#8b5cf6; --accent2:#c026d3; --soft:#c4a6ff;
+  --display:"Space Grotesk","Segoe UI",system-ui,sans-serif; --body:"Inter","Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#f6f3ff;--panel:#fff;--raised:#efeaff;--line:#d9d0f2;--fg:#1c1535;--muted:#5d5580;--accent:#7c3aed;--accent2:#a21caf;--soft:#6d3fd6;color-scheme:light}}
+:root[data-theme="light"]{--bg:#f6f3ff;--panel:#fff;--raised:#efeaff;--line:#d9d0f2;--fg:#1c1535;--muted:#5d5580;--accent:#7c3aed;--accent2:#a21caf;--soft:#6d3fd6;color-scheme:light}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.6 var(--body);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
+body{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+#stars{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+main,header,footer{position:relative;z-index:1;max-width:1080px;margin:0 auto}
+a{color:inherit}
+header{display:flex;align-items:center;gap:20px;padding-block:20px}
+.brand{display:flex;align-items:center;gap:10px;font:700 1.25rem var(--display);text-decoration:none}
+.brand svg{width:30px;height:30px}
+header nav{margin-left:auto;display:flex;gap:22px;font-size:.92rem;color:var(--muted)}
+header nav a{text-decoration:none}header nav a:hover{color:var(--fg)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:12px;font:600 .98rem var(--body);text-decoration:none;border:1px solid var(--line);background:var(--raised);color:var(--fg)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;color:#fff;box-shadow:0 8px 28px -8px var(--accent)}
+.btn:hover{transform:translateY(-1px)}.btn:focus-visible,a:focus-visible{outline:2px solid var(--soft);outline-offset:3px}
+.hero{display:grid;grid-template-columns:1fr 1.05fr;gap:48px;align-items:center;padding-block:56px 72px}
+h1{font:700 clamp(2.4rem,5.4vw,4rem)/1.04 var(--display);letter-spacing:-.02em;margin:0 0 18px;text-wrap:balance}
+h1 span{background:linear-gradient(135deg,var(--soft),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{font-size:1.15rem;color:var(--muted);max-width:34ch;margin:0 0 28px}
+.cta{display:flex;gap:12px;flex-wrap:wrap}
+.meta{margin-top:16px;font-size:.85rem;color:var(--muted)}
+/* mock of the app */
+.mock{background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:0 30px 80px -30px rgba(139,92,246,.45);min-width:0}
+.mock-bar{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line)}.mock-bar i{width:10px;height:10px;border-radius:50%;background:var(--line)}
+.mock-body{display:grid;grid-template-columns:130px 1fr;min-height:300px}
+.mock-rail{border-right:1px solid var(--line);padding:14px 10px;display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted)}
+.mock-rail b{font:700 .95rem var(--display);color:var(--fg);margin:0 6px 10px;display:block}
+.mock-rail span{padding:7px 10px;border-radius:8px}.mock-rail .on{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.mock-main{padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.mock-main h3{font:600 1.05rem var(--display);margin:0}
+.inst{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--raised)}
+.inst .ic{width:36px;height:36px;border-radius:9px;flex:none;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+.inst div{min-width:0;flex:1}.inst b{display:block;font-size:.9rem}.inst small{color:var(--muted)}
+.inst em{font:600 .72rem var(--body);font-style:normal;padding:4px 10px;border-radius:99px;background:var(--accent);color:#fff;flex:none}
+section{padding-block:56px;border-top:1px solid var(--line)}
+h2{font:700 clamp(1.6rem,3vw,2.2rem)/1.15 var(--display);margin:0 0 10px;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--muted);max-width:56ch;margin:0 0 32px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:28px 32px}
+.grid h3{font:600 1.05rem var(--display);margin:0 0 6px;color:var(--soft)}
+.grid p{margin:0;color:var(--muted);font-size:.96rem}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+.two>*{min-width:0}
+.list{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+.list li{padding-left:22px;position:relative;color:var(--muted)}
+.list li::before{content:"";position:absolute;left:0;top:.62em;width:8px;height:8px;border-radius:2px;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+.list b{color:var(--fg);font-weight:600}
+.steps{counter-reset:s;display:grid;gap:18px;margin:0;padding:0;list-style:none;max-width:62ch}
+.steps li{counter-increment:s;padding-left:46px;position:relative}
+.steps li::before{content:counter(s);position:absolute;left:0;top:0;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:700 .9rem var(--display);background:var(--raised);border:1px solid var(--line);color:var(--soft)}
+.steps b{display:block}.steps span{color:var(--muted);font-size:.95rem}
+.note{margin-top:28px;padding:16px 18px;border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--muted);font-size:.93rem;max-width:62ch}
+code{font:500 .88em ui-monospace,Consolas,monospace;background:var(--raised);padding:2px 6px;border-radius:6px}
+footer{padding-block:36px 48px;border-top:1px solid var(--line);display:flex;gap:20px;flex-wrap:wrap;color:var(--muted);font-size:.88rem}
+footer a{margin-left:auto}
+@media(max-width:820px){.hero,.two{grid-template-columns:1fr}.grid{grid-template-columns:1fr 1fr}header nav{display:none}}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.mock-body{grid-template-columns:96px 1fr}.hero{padding-block:32px 48px}}
+@media(prefers-reduced-motion:reduce){.btn{transition:none}.btn:hover{transform:none}}
+</style>
+
+</head>
+<body>
+<canvas id="stars" aria-hidden="true"></canvas>
+<header>
+  <a class="brand" href="#top"><svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c4a6ff"/><stop offset=".55" stop-color="#8b5cf6"/><stop offset="1" stop-color="#c026d3"/></linearGradient></defs><path d="M32 2C34 20 38 26 62 32 38 38 34 44 32 62 30 44 26 38 2 32 26 26 30 20 32 2Z" fill="url(#lg)"/></svg>Nova</a>
+  <nav><a href="#features">Features</a><a href="#mods">Mods</a><a href="#cosmetics">Cosmetics</a><a href="#download">Download</a></nav>
+</header>
+<main id="top">
+  <div class="hero">
+    <div>
+      <h1>A Minecraft launcher that is <span>fast and yours.</span></h1>
+      <p class="lead">Nova keeps every world, mod and setting in its own instance, tunes Java for your PC, and looks the way you want.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/nga67-smd/Nova-client/releases/download/latest/Nova.exe" target="_blank" rel="noopener">Download for Windows</a>
+        <a class="btn" href="https://github.com/nga67-smd/Nova-client" target="_blank" rel="noopener">View source</a>
+      </div>
+      <p class="meta">Free. Windows 10 and 11. No account needed to start.</p>
+    </div>
+    <div class="mock" role="img" aria-label="The Nova launcher showing a list of instances">
+      <div class="mock-bar"><i></i><i></i><i></i></div>
+      <div class="mock-body">
+        <div class="mock-rail"><b>Nova</b><span class="on">Library</span><span>Discover</span><span>Profiles</span><span>Cosmetics</span><span>Settings</span></div>
+        <div class="mock-main"><h3>Library</h3>
+          <div class="inst"><div class="ic"></div><div><b>Survival 1.21.1</b><small>Fabric · 42 mods · 4 GB</small></div><em>Play</em></div>
+          <div class="inst"><div class="ic" style="filter:hue-rotate(60deg)"></div><div><b>Shaders test</b><small>Fabric · 1.21.8 · 3 GB</small></div><em>Play</em></div>
+          <div class="inst"><div class="ic" style="filter:hue-rotate(140deg)"></div><div><b>Vanilla 1.8.9</b><small>Forge · 2 GB</small></div><em>Play</em></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="features">
+    <h2>Everything a launcher should do</h2>
+    <p class="sub">Install, tune and play without leaving one window.</p>
+    <div class="grid">
+      <div><h3>Every loader</h3><p>Vanilla, Fabric, Quilt, Forge and NeoForge. OptiFine works with the installer you supply.</p></div>
+      <div><h3>Separate instances</h3><p>Each one has its own mods, settings, Java and memory. Duplicate, export and import them.</p></div>
+      <div><h3>Automatic Java</h3><p>Nova finds Java on your PC or downloads the right version for each Minecraft release.</p></div>
+      <div><h3>Smart memory</h3><p>RAM is suggested from your system, the loader and how many mods you run.</p></div>
+      <div><h3>JVM presets</h3><p>Nova Balanced, Aikar's flags, Generational ZGC, Low-end PC, or your own arguments.</p></div>
+      <div><h3>Performance pack</h3><p>One click adds Sodium, Lithium and friends, plus Performance, Balanced and Quality option profiles.</p></div>
+    </div>
+  </section>
+
+  <section id="mods">
+    <div class="two">
+      <div>
+        <h2>Two mod sites, one search</h2>
+        <p class="sub">Find mods, shaders and resource packs on Modrinth and CurseForge from the Discover tab.</p>
+        <ul class="list">
+          <li><b>Dependencies</b> are installed for you.</li>
+          <li><b>Update checks</b> show what has a newer version.</li>
+          <li><b>Clean-up</b> clears old logs, crash reports and caches.</li>
+        </ul>
+      </div>
+      <div>
+        <h2>Looks like you</h2>
+        <p class="sub">Pick from 27 themes or set your own colors, corner roundness, text size and density. Use an image, GIF or video as the background.</p>
+        <ul class="list">
+          <li><b>Starfield, glow and animations</b> switch off one by one.</li>
+          <li><b>Save your look</b> and switch back any time.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="cosmetics">
+    <div class="two">
+      <div>
+        <h2>Nova cosmetics</h2>
+        <p class="sub">Design hats, face gear, chest emblems, boots and a cape that carry the Nova mark, in your own colors.</p>
+      </div>
+      <ul class="list">
+        <li><b>Skin parts</b> are painted onto your skin and can be saved to your Minecraft account for everyone online to see.</li>
+        <li><b>Capes</b> can't be uploaded to Minecraft, so the Nova in-game mod shows yours on your own character.</li>
+        <li><b>Your skin</b> is loaded automatically as the starting point.</li>
+        <li><b>Discord</b> can show "Playing Nova Launcher" with your instance and version.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="download">
+    <h2>Get Nova</h2>
+    <p class="sub">The download is a single <code>Nova.exe</code>. There is nothing to install.</p>
+    <ol class="steps">
+      <li><b>Download Nova.exe</b><span>The button always gets the newest build. <a href="https://github.com/nga67-smd/Nova-client/releases/download/latest/Nova-debug.exe" target="_blank" rel="noopener"><code>Nova-debug.exe</code></a> is the same app with a console, for troubleshooting.</span></li>
+      <li><b>Run it</b><span>The exe isn't code-signed yet, so Windows SmartScreen may warn you. Click More info, then Run anyway.</span></li>
+      <li><b>Add a profile and create an instance</b><span>Choose a Minecraft version and loader. Offline profiles work straight away.</span></li>
+    </ol>
+    <p class="cta" style="margin-top:28px"><a class="btn primary" href="https://github.com/nga67-smd/Nova-client/releases/download/latest/Nova.exe" target="_blank" rel="noopener">Download Nova.exe</a></p>
+    <p class="note">Playing online needs a Microsoft account that owns Minecraft: Java Edition, and a one-time sign-in setup that is described in the project readme. Offline profiles cover single-player and offline-mode servers.</p>
+  </section>
+</main>
+<footer><span>Nova Launcher. Not affiliated with Mojang or Microsoft.</span><a href="https://github.com/nga67-smd/Nova-client" target="_blank" rel="noopener">GitHub</a></footer>
+
+<script>
+(function(){var c=document.getElementById("stars"),x=c.getContext("2d"),s=[],w,h,dpr=Math.min(devicePixelRatio||1,2);
+function size(){w=innerWidth;h=innerHeight;c.width=w*dpr;c.height=h*dpr;x.setTransform(dpr,0,0,dpr,0,0);s=[];for(var i=0;i<Math.round(w*h/9000);i++)s.push({x:Math.random()*w,y:Math.random()*h,r:Math.random()*1.2+.2,a:Math.random()*6.28,v:Math.random()*.02+.005});draw()}
+function dark(){var t=document.documentElement.dataset.theme;return t?t==="dark":!matchMedia("(prefers-color-scheme: light)").matches}
+function draw(){x.clearRect(0,0,w,h);if(!dark())return;for(var i=0;i<s.length;i++){var p=s[i];x.globalAlpha=.25+.5*Math.abs(Math.sin(p.a));x.fillStyle="#d9ccff";x.beginPath();x.arc(p.x,p.y,p.r,0,6.28);x.fill()}x.globalAlpha=1}
+var rm=matchMedia("(prefers-reduced-motion: reduce)").matches;
+function tick(){for(var i=0;i<s.length;i++)s[i].a+=s[i].v;draw();requestAnimationFrame(tick)}
+addEventListener("resize",size);size();if(!rm)requestAnimationFrame(tick)})();
+</script>
+
+</body>
+</html>
