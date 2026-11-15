@@ -225,7 +225,10 @@ async function pageCosmetics(v) {
     CS.sel = { ...saved.selected }; CS.colors = { ...saved.colors }; CS.slim = saved.variant === "slim";
     CS.base = null;
     if (saved.has_base) { try { const r = await api("/api/cosmetics/file?kind=base"); CS.base = COS.imageToBase(await COS.loadImage("data:image/png;base64," + r.png)); CS.baseNote = "Your saved base skin"; } catch { CS.base = null; } }
-    if (!CS.base) { CS.base = COS.defaultBase(CS.slim); CS.baseNote = "Nova default skin"; }
+    if (!CS.base && CS.ms) {            // first visit with a Microsoft profile: start from your own Minecraft skin
+      try { const r = await api("/api/cosmetics/current-skin"); if (r.png) { CS.base = COS.imageToBase(await COS.loadImage("data:image/png;base64," + r.png)); CS.slim = r.variant === "slim"; CS.baseNote = "Your Minecraft skin"; } } catch { CS.base = null; }
+    }
+    if (!CS.base) { CS.base = COS.defaultBase(CS.slim); CS.baseNote = CS.ms ? "Nova default skin (couldn't load your Minecraft skin)" : "Nova default skin. Sign in with Microsoft in Profiles to use your own."; }
     CS.loaded = true;
   }
   const preview = el("canvas", { width: "384", height: "384", class: "cos-preview", role: "img", "aria-label": "Preview of your character" });
@@ -282,6 +285,6 @@ async function pageCosmetics(v) {
         el("div", { style: { height: "10px" } }),
         el("div", { class: "row", style: { "flex-wrap": "wrap" } }, CS.ms ? bMine : null, bUp, bDef, bClear),
         el("p", { class: "muted small", style: { margin: "14px 0 0", "line-height": "1.5" } },
-          "Hats, face gear, chest and boots are painted into your skin, so “Use on my Minecraft account” shows them to everyone online (Microsoft profiles only). " +
+          "\u201CUse my Minecraft skin\u201D reloads your account\u2019s current skin. After you have uploaded a design, that skin already contains it, so keep editing from the saved base instead. Hats, face gear, chest and boots are painted into your skin, so “Use on my Minecraft account” shows them to everyone online (Microsoft profiles only). " +
           "Minecraft can't upload custom capes, so the Nova cape and your skin show on your own character through the Nova in-game mod (Fabric 1.21.1 and 1.21.8)."))));
 }
