@@ -5,22 +5,6 @@
 // ------------------------------------------------------------------ helpers
 const $ = (s, r = document) => r.querySelector(s);
 
-function picturesCard(s) {
-  const mode = s.ui_mode, mine = (S.data.mode_art || []).filter((a) => a.mode === mode);
-  const pick = () => { const f = el("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif", multiple: true, style: { display: "none" } });
-    f.addEventListener("change", async () => { const files = [...f.files]; if (!files.length) return; let n = 0;
-      for (const file of files) { try { await api("/api/mode-art-upload", { raw: file, filename: file.name }); n++; } catch (e) { fail(e); break; } }
-      await loadState(); applyTheme(); render(); if (n) toast(n + (n > 1 ? " pictures added." : " picture added."), "ok"); });
-    f.click(); };
-  return el("div", { class: "section card" }, el("h2", {}, "Your pictures"),
-    el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, mode === "kawaii"
-      ? "Add your own anime-girl pictures. They show in the sidebar and drift across the app in little frames. Nova can't search the web for images itself \u2014 save the ones you like from Google and add them here."
-      : "Add your own photos or art (guitars, bands, moody portraits). They show in the sidebar and drift across the app in little frames. Nova can't search the web for images itself \u2014 save the ones you like from Google and add them here."),
-    el("div", { class: "art-grid" }, mine.map((a) => el("div", { class: "art-thumb" }, el("img", { src: `/modeart/${a.id}?t=${window.NOVA_TOKEN}`, alt: "" }),
-      el("button", { class: "btn sm", title: "Remove", onclick: async () => { try { await api("/api/mode-art/" + a.id, { method: "DELETE" }); await loadState(); applyTheme(); render(); } catch (e) { fail(e); } } }, "Remove")))),
-    el("div", { style: { height: "10px" } }), el("button", { class: "btn", onclick: pick }, icon("plus"), "Add pictures"), el("span", { class: "muted small", style: { marginLeft: "10px" } }, mine.length + " / 8 \u00b7 PNG, JPEG, WebP or GIF, up to 4 MB each"));
-}
-
 function el(tag, attrs, ...kids) {
   const n = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -112,14 +96,7 @@ function applyTheme() {
   st.setProperty("--radius", s.radius + "px"); st.setProperty("--scale", s.font_scale / 100);
   r.dataset.surface = s.surface; r.dataset.density = s.density;
   r.dataset.glow = s.glow ? "on" : "off"; r.dataset.anim = s.animations ? "on" : "off"; r.dataset.stars = s.starfield ? "on" : "off";
-  const mode = applyMode(s.ui_mode, !!s.animations, S.data.mode_art);
-  stars.enabled = !!s.starfield && mode !== "kawaii";
-  if (mode !== "normal") {            // Kawaii / Emo own the whole look; your theme and backgrounds are kept for Normal
-    ["--accent", "--accent2", "--radius", "--bg-layer", "--font"].forEach((v) => st.removeProperty(v)); SURFACE_VARS.forEach((v) => st.removeProperty(v));
-    r.dataset.bg = "surface"; r.dataset.motion = "none"; r.dataset.pattern = "none";
-    const v0 = $("#bgvideo"); if (v0.dataset.src) { v0.pause(); v0.removeAttribute("src"); v0.dataset.src = ""; v0.load(); }
-    $("#bgdim").style.opacity = 0; updateBgPause(); return;
-  }
+  stars.enabled = !!s.starfield;
   // custom page color: derive every surface from it
   if (s.base) {
     const mix = (p) => `color-mix(in srgb, ${s.base}, white ${p}%)`;
@@ -714,10 +691,6 @@ async function pageSettings(v) {
   const javaIn = el("input", { type: "text", value: s.java_path, placeholder: "Automatic" }); javaIn.addEventListener("change", () => set({ java_path: javaIn.value.trim() }));
   const gj = el("input", { type: "text", value: s.global_jvm_args, placeholder: "-Dexample=1" }); gj.addEventListener("change", () => set({ global_jvm_args: gj.value }));
   v.append(el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Settings"), el("p", {}, "Make Nova look and behave the way you like. Changes apply instantly."))),
-    el("div", { class: "section card" }, el("h2", {}, "Mode"), el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Restyles the whole app. Normal keeps everything as is; Kawaii and Emo bring their own colors, shapes and decorations. Your theme and background are remembered for when you switch back."),
-      el("div", { class: "modes" }, Object.entries(MODES).map(([k, m]) => el("button", { class: "mode-tile", "data-preview": k, "aria-pressed": String((s.ui_mode || "normal") === k), onclick: async () => { await set({ ui_mode: k }); render(); toast(m.name + " mode on.", "ok"); } },
-        el("div", { class: "mode-art", "aria-hidden": "true" }, el("i"), el("i"), el("i")), el("b", {}, m.name), el("span", {}, m.tagline))))),
-    (s.ui_mode === "kawaii" || s.ui_mode === "emo") ? picturesCard(s) : null,
     el("div", { class: "section card" }, el("div", { class: "row" }, el("h2", { class: "grow" }, "Themes"), el("button", { class: "btn sm", onclick: saveLook }, icon("plus"), "Save current look")),
       el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Pick a theme, then change anything below. \u25b6 marks animated themes."), galBox,
       (S.data.my_themes || []).length ? el("div", {}, el("h3", { style: { margin: "18px 0 10px" } }, "My themes"), myBox) : null,
