@@ -21,7 +21,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (__version__, accounts, cosmetics, curseforge, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths,
+from . import (__version__, accounts, cosmetics, curseforge, hudmod, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths,
                settings as settingsmod, versions)
 from . import look
 from .util import NovaError, TaskManager, human_size, dir_size, slugify
@@ -375,6 +375,13 @@ def build_routes(app: App):
     @route("POST", "/api/cosmetics/apply-skin")
     def _cos_apply(ctx):
         return cosmetics.upload_skin()
+
+    @route("POST", "/api/instances/<iid>/nova-mod")
+    def _nova_mod(ctx, iid):
+        inst = instances.get(iid)
+        if not hudmod.supported(inst):
+            raise NovaError("The Nova mod works on Fabric 1.21.1 and 1.21.8 instances.")
+        return {"status": hudmod.ensure(inst)}
 
     @route("POST", "/api/cosmetics/reset")
     def _cos_reset(ctx):
