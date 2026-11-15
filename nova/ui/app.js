@@ -27,6 +27,7 @@ function el(tag, attrs, ...kids) {
 const ICONS = {
   library: "M4 5h7v7H4zM13 5h7v7h-7zM4 14h7v6H4zM13 14h7v6h-7z",
   discover: "M11 4a7 7 0 1 0 4.2 12.6l4.4 4.4 1.4-1.4-4.4-4.4A7 7 0 0 0 11 4zm0 2a5 5 0 1 1 0 10 5 5 0 0 1 0-10z",
+  cosmetics: "M12 2l2.4 6.6L21 9l-5 4.4 1.6 6.6L12 16.4 6.4 20l1.6-6.6L3 9l6.6-.4z",
   profiles: "M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z",
   settings: "M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.4-2.5 1a7.6 7.6 0 0 0-1.7-1L15 3h-4l-.4 3a7.6 7.6 0 0 0-1.7 1l-2.5-1-2 3.4L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.4 2.5-1c.5.4 1.1.7 1.7 1l.4 3h4l.4-3c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.4zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z",
   play: "M8 5v14l11-7z", stop: "M7 7h10v10H7z", plus: "M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z",
@@ -132,7 +133,7 @@ document.addEventListener("visibilitychange", () => updateBgPause());
 const instById = (id) => S.data.instances.find((i) => i.id === id);
 
 // ------------------------------------------------------------------ rail
-const NAV = [["library", "Library", "library"], ["discover", "Discover", "discover"], ["profiles", "Profiles", "profiles"], ["settings", "Settings", "settings"]];
+const NAV = [["library", "Library", "library"], ["discover", "Discover", "discover"], ["profiles", "Profiles", "profiles"], ["cosmetics", "Cosmetics", "cosmetics"], ["settings", "Settings", "settings"]];
 function renderRail() {
   const nav = $("#nav"); nav.replaceChildren();
   for (const [id, label, ic] of NAV) {
@@ -154,7 +155,7 @@ function go(page, inst, tab) {
 async function render() {
   const v = $("#view"); v.replaceChildren();
   try {
-    const fn = { library: pageLibrary, discover: pageDiscover, profiles: pageProfiles, settings: pageSettings, instance: pageInstance }[S.page];
+    const fn = { library: pageLibrary, discover: pageDiscover, profiles: pageProfiles, cosmetics: pageCosmetics, settings: pageSettings, instance: pageInstance }[S.page];
     await fn(v);
   } catch (e) { v.replaceChildren(el("div", { class: "empty" }, el("h2", {}, "Something went wrong"), el("p", {}, e.message))); }
 }

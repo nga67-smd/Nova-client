@@ -5,6 +5,7 @@ per-run secret token, and the Host header is validated (blocks DNS rebinding).
 """
 from __future__ import annotations
 
+import base64
 import hmac
 import json
 import mimetypes
@@ -20,7 +21,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (__version__, accounts, curseforge, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths,
+from . import (__version__, accounts, cosmetics, curseforge, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths,
                settings as settingsmod, versions)
 from . import look
 from .util import NovaError, TaskManager, human_size, dir_size, slugify
@@ -353,6 +354,31 @@ def build_routes(app: App):
         return mods.search(ctx.q("q") or "", ctx.q("mc") or "", ctx.q("loader") or "", ctx.q("type") or "mod",
                            ctx.q("sort") or "relevance", int(ctx.q("offset") or 0),
                            source="curseforge" if ctx.q("source") == "curseforge" else "modrinth")
+
+    @route("GET", "/api/cosmetics")
+    def _cos_get(ctx):
+        return {"cosmetics": cosmetics.load(), "microsoft": bool((accounts.selected() or {}).get("type") == "microsoft")}
+
+    @route("GET", "/api/cosmetics/file")
+    def _cos_file(ctx):
+        raw = cosmetics.read_file(ctx.q("kind") or "")
+        return {"png": base64.b64encode(raw).decode() if raw else None}
+
+    @route("GET", "/api/cosmetics/current-skin")
+    def _cos_current(ctx):
+        return cosmetics.current_skin()
+
+    @route("POST", "/api/cosmetics/save")
+    def _cos_save(ctx):
+        return {"cosmetics": cosmetics.save(ctx.body)}
+
+    @route("POST", "/api/cosmetics/apply-skin")
+    def _cos_apply(ctx):
+        return cosmetics.upload_skin()
+
+    @route("POST", "/api/cosmetics/reset")
+    def _cos_reset(ctx):
+        return {"cosmetics": cosmetics.reset()}
 
     @route("POST", "/api/ui-ok")
     def _ui_ok(ctx):

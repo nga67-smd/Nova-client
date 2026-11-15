@@ -25,6 +25,7 @@ URLS = {
     "mc_login": "https://api.minecraftservices.com/authentication/login_with_xbox",
     "entitlements": "https://api.minecraftservices.com/entitlements/mcstore",
     "profile": "https://api.minecraftservices.com/minecraft/profile",
+    "profile_skins": "https://api.minecraftservices.com/minecraft/profile/skins",
 }
 SCOPE = "XboxLive.signin offline_access"
 GRANT_DEVICE = "urn:ietf:params:oauth:grant-type:device_code"
