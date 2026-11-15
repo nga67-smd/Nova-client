@@ -437,7 +437,7 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
   --bg: #050505; --panel: #0a0a0a; --raised: #111; --raised2: #1a1a1a; --line: #262626; --line2: #4a1018;
   --text: #ebe6e6; --muted: #a09494; --faint: #6e6262; --good: #5fbf7a; --warn: #d9a441; --bad: #ff4d5e;
   --shadow: 0 10px 30px rgba(0, 0, 0, .8);
-  --glow: 0 0 0 1px #6e0b17, 0 6px 26px rgba(209, 26, 42, .4);
+  --glow: none;
   --font: "Segoe UI", system-ui, sans-serif;
   --gothic: "UnifrakturCook", "Old English Text MT", "Blackletter", "Palatino Linotype", "Book Antiqua", Georgia, serif;
 }
@@ -445,17 +445,17 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
   background: repeating-linear-gradient(135deg, #050505 0 22px, #0a0a0a 22px 44px);
   background-attachment: fixed;
 }
-:root[data-mode="emo"] body::before { background: radial-gradient(800px 460px at 85% -8%, rgba(209, 26, 42, .16), transparent 70%), radial-gradient(700px 520px at -8% 110%, rgba(110, 11, 23, .3), transparent 70%); }
+:root[data-mode="emo"] body::before { background: none; }
 :root[data-mode="emo"] body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, .75) 100%); }
 :root[data-mode="emo"] .app::before, :root[data-mode="emo"] .app::after { content: ""; position: fixed; width: 150px; height: 150px; z-index: 0; pointer-events: none; opacity: .5;
   background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23b8aeae' stroke-width='1.2'%3E%3Cpath d='M0 0L120 0M0 0L105 45M0 0L75 75M0 0L45 105M0 0L0 120'/%3E%3Cpath d='M30 0Q26 26 0 30M60 0Q52 52 0 60M90 0Q78 78 0 90M118 0Q102 102 0 118'/%3E%3C/g%3E%3C/svg%3E"); }
 :root[data-mode="emo"] .app::before { right: 0; top: 0; transform: scaleX(-1); }
-:root[data-mode="emo"] .app::after { left: 224px; bottom: 0; transform: scaleY(-1); }
-:root[data-mode="emo"] .rail { background: rgba(8, 8, 8, .92); border-right: 1px solid #4a1018; box-shadow: 4px 0 24px rgba(110, 11, 23, .25); }
-:root[data-mode="emo"] .brand-name { font-family: var(--gothic); font-size: 1.6rem; letter-spacing: .04em; color: #f2eded; text-shadow: 0 0 12px rgba(209, 26, 42, .6); }
-:root[data-mode="emo"] .brand-mark { color: #e9e4e4; filter: drop-shadow(0 0 8px rgba(209, 26, 42, .7)); }
+:root[data-mode="emo"] .app::after { display: none; }
+:root[data-mode="emo"] .rail { background: rgba(8, 8, 8, .92); border-right: 1px solid #4a1018;  }
+:root[data-mode="emo"] .brand-name { font-family: var(--gothic); font-size: 1.6rem; letter-spacing: .04em; color: #f2eded; }
+:root[data-mode="emo"] .brand-mark { color: #e9e4e4;  }
 :root[data-mode="emo"] h1, :root[data-mode="emo"] h2 { font-family: var(--gothic); font-weight: 600; letter-spacing: .03em; }
-:root[data-mode="emo"] h1 { font-size: 2.1rem; text-shadow: 0 0 18px rgba(209, 26, 42, .35); }
+:root[data-mode="emo"] h1 { font-size: 2.1rem; }
 :root[data-mode="emo"] h1::before { content: "\2020  "; color: var(--accent); font-size: .7em; }
 :root[data-mode="emo"] .nav button { border-radius: 1px; text-transform: uppercase; letter-spacing: .09em; font-size: .8rem; }
 :root[data-mode="emo"] .nav button[aria-current="page"] { background: linear-gradient(90deg, rgba(209, 26, 42, .28), transparent); box-shadow: inset 3px 0 0 var(--accent); }
@@ -463,8 +463,8 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
   border: 1px solid #3a0f16; border-top: 2px solid var(--accent); border-radius: 1px; background: rgba(12, 12, 12, .86); box-shadow: 0 0 0 1px #000, 0 10px 30px rgba(0, 0, 0, .7);
 }
 :root[data-mode="emo"] .btn { border-radius: 1px; text-transform: uppercase; letter-spacing: .08em; font-size: .78rem; font-weight: 650; border: 1px solid #4a1018; background: #0f0f0f; color: var(--text); }
-:root[data-mode="emo"] .btn:hover { border-color: var(--accent); box-shadow: 0 0 14px rgba(209, 26, 42, .4); }
-:root[data-mode="emo"] .btn.primary { background: linear-gradient(180deg, #d11a2a, #7a0e1c); border-color: #ff4d5e; color: #fff; box-shadow: var(--glow); }
+:root[data-mode="emo"] .btn:hover { border-color: #8a3a44; background: #161616; }
+:root[data-mode="emo"] .btn.primary { background: #8c1420; border-color: #a8283a; color: #f4eeee; box-shadow: none; }
 :root[data-mode="emo"] .btn.ghost { background: transparent; }
 :root[data-mode="emo"] .seg, :root[data-mode="emo"] .seg button, :root[data-mode="emo"] input, :root[data-mode="emo"] select, :root[data-mode="emo"] textarea, :root[data-mode="emo"] .chip { border-radius: 1px; }
 :root[data-mode="emo"] .avatar { border-radius: 1px; background: linear-gradient(135deg, #d11a2a, #4a0a12); }
@@ -478,3 +478,22 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 :root[data-mode="kawaii"] #decor::after, :root[data-mode="emo"] #decor::after { content: ""; position: absolute; right: 2vw; bottom: -2vh; width: min(34vw, 380px); aspect-ratio: 1; background: no-repeat center / contain; }
 :root[data-mode="kawaii"] #decor::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cellipse cx='11' cy='8' rx='3.2' ry='8' fill='%23fff' stroke='%23ff8fc0' stroke-width='1.2'/%3E%3Cellipse cx='21' cy='8' rx='3.2' ry='8' fill='%23fff' stroke='%23ff8fc0' stroke-width='1.2'/%3E%3Cellipse cx='11' cy='9' rx='1.4' ry='5' fill='%23ffc2dd'/%3E%3Cellipse cx='21' cy='9' rx='1.4' ry='5' fill='%23ffc2dd'/%3E%3Ccircle cx='16' cy='20' r='10' fill='%23fff' stroke='%23ff8fc0' stroke-width='1.2'/%3E%3Ccircle cx='12.2' cy='19.5' r='1.4' fill='%235b2145'/%3E%3Ccircle cx='19.8' cy='19.5' r='1.4' fill='%235b2145'/%3E%3Cellipse cx='9.6' cy='22.5' rx='2.2' ry='1.4' fill='%23ffb3d1'/%3E%3Cellipse cx='22.4' cy='22.5' rx='2.2' ry='1.4' fill='%23ffb3d1'/%3E%3Cpath d='M14.6 22.5q1.4 1.4 2.8 0' stroke='%235b2145' stroke-width='1.1' fill='none' stroke-linecap='round'/%3E%3Cpath fill='%23ff5fa8' d='M24 12l3-3 1 4zM24 12l3 3 1-4z'/%3E%3C/svg%3E"); opacity: .55; transform: rotate(-8deg); }
 :root[data-mode="emo"] #decor::after { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='%23d11a2a'%3E%3Ccircle cx='16' cy='24' r='6.5'/%3E%3Ccircle cx='16' cy='16.5' r='4.6'/%3E%3Crect x='15' y='2' width='2' height='15'/%3E%3Crect x='13.3' y='0.3' width='5.4' height='4.4' rx='1'/%3E%3C/g%3E%3Crect x='12' y='21' width='8' height='1.8' fill='%23000' opacity='.55'/%3E%3Crect x='12' y='25.5' width='8' height='1.8' fill='%23000' opacity='.55'/%3E%3Cpath d='M16 2V26' stroke='%23000' stroke-opacity='.35' stroke-width='.3'/%3E%3C/svg%3E"); opacity: .16; transform: rotate(24deg); right: -1vw; }
+
+/* rail art + user pictures */
+#railart { margin-top: auto; display: none; justify-content: center; padding: 6px 0 4px; }
+:root[data-mode="kawaii"] #railart, :root[data-mode="emo"] #railart { display: flex; }
+#railart + .rail-foot { margin-top: 10px; }
+.rail-svg { max-width: 100%; height: auto; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .25)); }
+.rail-frame { position: relative; width: 168px; aspect-ratio: 3 / 4; padding: 6px; background: #fff; border-radius: 4px; box-shadow: 0 4px 14px rgba(0, 0, 0, .4); transform: rotate(-2deg); }
+:root[data-mode="emo"] .rail-frame { background: #d9d4d4; border-radius: 1px; }
+:root[data-mode="kawaii"] .rail-frame { border-radius: 10px; box-shadow: 0 4px 14px rgba(255, 95, 168, .35); }
+.rail-frame img { position: absolute; inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); object-fit: cover; opacity: 0; transition: opacity .8s; }
+.rail-frame img.on { opacity: 1; }
+.decor-photo { aspect-ratio: 3 / 4; object-fit: cover; padding: 4px; background: #fff; border-radius: 3px; box-shadow: 0 3px 10px rgba(0, 0, 0, .4); }
+:root[data-mode="emo"] .decor-photo { background: #cfc8c8; filter: grayscale(.35) contrast(1.05); opacity: .55 !important; border-radius: 1px; }
+.art-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+.art-thumb { position: relative; width: 96px; aspect-ratio: 3 / 4; border-radius: 8px; overflow: hidden; border: 1px solid var(--border, #444); }
+.art-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.art-thumb .btn { position: absolute; left: 4px; right: 4px; bottom: 4px; justify-content: center; opacity: .92; }
+:root[data-mode="emo"] #decor::after { display: none; }
+:root[data-mode="kawaii"] #decor::after { display: none; }
