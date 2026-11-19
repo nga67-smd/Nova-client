@@ -225,3 +225,37 @@ def test_bad_launch_link_is_refused(home, monkeypatch):
     monkeypatch.setattr(appmod, "_error_box", shown.append)          # a real message box would wait for a click
     assert appmod.main(["--launch", "calc.exe --evil"]) == 1
     assert shown and "Roblox launch link" in shown[0]
+
+
+def test_existing_roblox_on_the_pc_can_be_used_without_downloading(home, monkeypatch, tmp_path):
+    local = tmp_path / "local"
+    mine = local / "Roblox" / "Versions" / VER
+    mine.mkdir(parents=True)
+    (mine / "RobloxPlayerBeta.exe").write_text("exe")
+    (local / "Roblox" / "Versions" / "version-aaaaaaaaaaaaaaaa").mkdir()          # an empty leftover folder: ignored
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    assert rbx.installed_version() == "" and rbx.status()["existing"][0]["version"] == VER
+    assert rbx.adopt_existing("C:/not/offered") == ""                             # only folders Nova found itself are accepted
+    assert rbx.adopt_existing() == VER and rbx.installed_version() == VER and rbx.is_external()
+    assert rbx.version_dir() == mine
+    rbx.save_flags({"DFIntTaskSchedulerTargetFps": 144})
+    rbx.write_flags(rbx.version_dir())
+    assert (mine / "ClientSettings" / "ClientAppSettings.json").exists()
+    rbx.uninstall()                                                                # never deletes Roblox's own folder
+    assert rbx.installed_version() == "" and (mine / "RobloxPlayerBeta.exe").exists()
+
+
+def test_launch_link_uses_an_existing_roblox(home, monkeypatch, tmp_path):
+    import nova.app as appmod
+    local = tmp_path / "local"
+    (local / "Roblox" / "Versions" / VER).mkdir(parents=True)
+    (local / "Roblox" / "Versions" / VER / "RobloxPlayerBeta.exe").write_text("exe")
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    _fake_roblox(monkeypatch)                                                       # Roblox says VER is current
+    started = []
+    monkeypatch.setattr(rbx, "start", lambda uri=None: started.append(uri) or _Proc())
+    monkeypatch.setattr(appmod, "IS_ROBLOX", True)
+    monkeypatch.setattr(appmod, "hide_child_consoles", lambda: None)
+    monkeypatch.setattr(appmod, "open_window", lambda *a, **k: pytest.fail("no window expected"))
+    assert appmod.main(["--launch", "roblox://experiences/start?placeId=2"]) == 0
+    assert started == ["roblox://experiences/start?placeId=2"] and rbx.is_external()

@@ -169,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     if IS_ROBLOX and args.launch:
         try:
             uri = rbx.clean_launch_uri(args.launch)
-            current = rbx.installed_version()
+            current = rbx.installed_version() or rbx.adopt_existing()      # a Roblox already on this PC counts
             try:
                 latest = rbx.latest_version() if current else ""
             except Exception:

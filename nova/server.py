@@ -183,6 +183,12 @@ def build_routes(app: App):
         cur = rbx.installed_version()
         return {"latest": latest, "installed": cur, "update": bool(cur and cur != latest)}
 
+    @route("POST", "/api/roblox/use-existing")
+    def _rbx_adopt(ctx):
+        if not rbx.adopt_existing(ctx.body.get("path")):
+            raise NovaError("Nova couldn't find a Roblox on this PC.")
+        return rbx.status()
+
     @route("POST", "/api/roblox/install")
     def _rbx_install(ctx):
         return app.start_roblox_install().to_dict()
