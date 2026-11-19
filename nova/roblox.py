@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -61,16 +62,61 @@ def _state_file() -> Path:
     return root() / "state.json"
 
 
+def _state() -> dict:
+    return read_json(_state_file(), {}) or {}
+
+
 def installed_version() -> str:
-    v = (read_json(_state_file(), {}) or {}).get("version", "")
-    return v if VERSION_RX.match(v or "") and (versions_root() / v / PLAYER_EXE).exists() else ""
+    """The Roblox Nova will run: its own copy, or a Roblox already on this PC that the person chose to use."""
+    st = _state()
+    v = st.get("version", "")
+    if not VERSION_RX.match(v or ""):
+        return ""
+    d = Path(st["dir"]) if st.get("dir") else versions_root() / v
+    return v if (d / PLAYER_EXE).exists() else ""
+
+
+def is_external() -> bool:
+    return bool(installed_version() and _state().get("dir"))
 
 
 def version_dir(v: str | None = None) -> Path:
-    v = v or installed_version()
-    if not VERSION_RX.match(v or ""):
+    cur = installed_version()
+    if v is None and cur:
+        st = _state()
+        return Path(st["dir"]) if st.get("dir") else versions_root() / cur
+    if not VERSION_RX.match(v or cur or ""):
         raise NovaError("Roblox isn't installed yet.")
-    return versions_root() / v
+    return versions_root() / (v or cur)
+
+
+def existing_installs() -> list[dict]:
+    """Roblox (or a Bloxstrap-style launcher's copy) already on this PC, newest first."""
+    base = os.environ.get("LOCALAPPDATA")
+    if not base:
+        return []
+    found = []
+    for label, sub in (("Roblox", "Roblox"), ("Bloxstrap", "Bloxstrap"), ("Voidstrap", "Voidstrap"), ("Fishstrap", "Fishstrap")):
+        vroot = Path(base) / sub / "Versions"
+        if not vroot.is_dir():
+            continue
+        for d in vroot.iterdir():
+            if VERSION_RX.match(d.name) and (d / PLAYER_EXE).exists():
+                found.append({"version": d.name, "from": label, "path": str(d), "_t": (d / PLAYER_EXE).stat().st_mtime})
+    found.sort(key=lambda x: x["_t"], reverse=True)
+    for f in found:
+        f.pop("_t")
+    return found
+
+
+def adopt_existing(path: str | None = None) -> str:
+    """Use a Roblox that's already installed instead of downloading another copy. Returns its version, or ''."""
+    options = existing_installs()
+    pick = next((o for o in options if o["path"] == path), None) if path else (options[0] if options else None)
+    if not pick:
+        return ""
+    write_json(_state_file(), {"version": pick["version"], "dir": pick["path"], "installed": time.time()})
+    return pick["version"]
 
 
 # ------------------------------------------------------------------ install / update
@@ -159,6 +205,7 @@ def _set_installed(version: str) -> None:
 
 
 def uninstall() -> None:
+    """Remove Nova's own copy. A Roblox that Nova only borrows from another install is never deleted."""
     shutil.rmtree(versions_root(), ignore_errors=True)
     _state_file().unlink(missing_ok=True)
     (root() / "mods_applied.json").unlink(missing_ok=True)
@@ -413,6 +460,6 @@ def start(uri: str | None = None) -> subprocess.Popen:
 def status() -> dict:
     v = installed_version()
     flags = load_flags()
-    return {"supported": supported(), "version": v, "registered": protocol_registered(), "flags": flags,
+    return {"supported": supported(), "version": v, "external": is_external(), "existing": existing_installs()[:3], "registered": protocol_registered(), "flags": flags,
             "presets": {k: {"name": p["name"], "desc": p["desc"]} for k, p in PRESETS.items()}, "preset_on": preset_states(flags),
             "mods": mods_info(), "path": str(root())}
