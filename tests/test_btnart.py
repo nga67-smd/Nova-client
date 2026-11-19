@@ -24,6 +24,9 @@ def test_set_replace_remove_and_validate(tmp_path, monkeypatch):
     f.write_bytes(b"GIF89a" + bytes(40))
     btnart.set_picture("primary", f)                                  # replaces the old file, whatever its type
     assert btnart.file_for("primary")[1] == "image/gif" and len(list((tmp_path / "button_art").iterdir())) == 1
+    f.write_bytes(b"\x89PNG\r\n\x1a\n" + bytes(6 * 1024 * 1024))             # a large, high-resolution picture is kept as is
+    btnart.set_picture("primary", f)
+    assert btnart.file_for("primary")[0].stat().st_size == 8 + 6 * 1024 * 1024
     f.write_bytes(b"MZ not a picture")
     with pytest.raises(NovaError):
         btnart.set_picture("normal", f)
