@@ -372,3 +372,74 @@ def test_http_routes(home, monkeypatch):
     assert call("POST", "/api/roblox/mods/toggle", {"name": "Sky", "enabled": False})[1]["mods"][0]["enabled"] is False
     assert call("POST", "/api/roblox/mods/delete", {"name": "Sky"})[1]["mods"] == []
     assert call("POST", "/api/roblox/mods/delete", {"name": "../x"})[0] == 400
+
+
+def test_sky_check_says_whether_your_sky_is_in_the_game_files(home):
+    d = _install(home)
+    rbx.detect()
+    assert set(rbx.sky_check()["files"].values()) == {"default"}
+    rbx.set_sky_color("#336699")
+    rbx.apply_sky_now()
+    chk = rbx.sky_check()
+    assert set(chk["files"].values()) == {"yours"} and chk["found_files"] == 6 and chk["version"] == VER
+    (d / "content" / "sky" / "sky512_ft.tex").write_text("put back by a launcher")        # something restored a file
+    assert rbx.sky_check()["files"]["front"] == "original" and rbx.sky_check()["files"]["back"] == "yours"
+    assert rbx.apply_sky_now() and rbx.sky_check()["files"]["front"] == "yours"
+
+
+def test_bloxstrap_family_launchers_get_the_mods_in_their_own_modifications_folder(home):
+    d = _install(home, VER, "Voidstrap")
+    assert rbx.detect() == VER and rbx.status()["from"] == "Voidstrap"
+    rbx.set_sky_color("#ff00ff")
+    assert rbx.apply_sky_now()
+    mods = home / "local" / "Voidstrap" / "Modifications"
+    assert rbx.sky_check()["launcher_folder"] == str(mods)
+    assert (mods / "content" / "sky" / "sky512_ft.tex").read_bytes()[:4] == b"DDS " and (d / "content/sky/sky512_ft.tex").read_bytes()[:4] == b"DDS "
+    (mods / "content" / "sounds").mkdir(parents=True)
+    (mods / "content" / "sounds" / "mine.ogg").write_text("the person's own mod")             # their own files are left alone
+    rbx.clear_sky()
+    rbx.apply_sky_now()
+    assert not (mods / "content" / "sky" / "sky512_ft.tex").exists() and (mods / "content" / "sounds" / "mine.ogg").exists()
+    assert (d / "content/sky/sky512_ft.tex").read_text() == "orig-ft"
+
+
+def test_mods_remembered_by_the_earlier_format_are_still_undone(home):
+    d = _install(home)
+    rbx.detect()
+    (d / "content" / "sounds" / "ouch.ogg").write_text("MOD")                                # an earlier Nova had put this here
+    (rbx.root() / "ModBackup" / "content" / "sounds").mkdir(parents=True)
+    (rbx.root() / "ModBackup" / "content" / "sounds" / "ouch.ogg").write_text("orig")
+    rbx.write_json(rbx.root() / "mods_applied.json", {"_version": VER, "files": {"content/sounds/ouch.ogg": True}})
+    rbx.apply_mods(d)
+    assert (d / "content/sounds/ouch.ogg").read_text() == "orig"
+
+
+def test_ready_made_skies_are_valid_textures(home):
+    d = _install(home)
+    rbx.detect()
+    for name in rbx.SKY_PRESETS:
+        rbx.set_sky_preset(name)
+        assert rbx.apply_sky_now()
+        for code in ("ft", "up", "dn"):
+            data = (d / "content" / "sky" / f"sky512_{code}.tex").read_bytes()
+            assert data[:4] == b"DDS " and len(data) == 128 + 512 * 512 // 2
+    top = _dxt1_pixel((d / "content" / "sky" / "sky512_ft.tex").read_bytes(), 100, 2)
+    low = _dxt1_pixel((d / "content" / "sky" / "sky512_ft.tex").read_bytes(), 100, 509)
+    assert top != low                                                             # a gradient, not a flat color
+    try:
+        rbx.set_sky_preset("nope")
+        assert False
+    except rbx.NovaError:
+        pass
+
+
+def test_cleanup_clears_logs_and_temp_only(home, monkeypatch):
+    la, tmp = home / "la", home / "tmp"
+    (la / "Roblox" / "logs").mkdir(parents=True); (tmp / "Roblox" / "x").mkdir(parents=True)
+    (la / "Roblox" / "logs" / "a.log").write_bytes(b"x" * 1000)
+    (tmp / "Roblox" / "x" / "b.bin").write_bytes(b"y" * 500)
+    (la / "Roblox" / "keep.txt").write_text("keep")
+    monkeypatch.setenv("LOCALAPPDATA", str(la)); monkeypatch.setenv("TEMP", str(tmp))
+    assert rbx.cleanup_info()["bytes"] == 1500
+    assert rbx.cleanup()["freed"] == 1500
+    assert rbx.cleanup_info()["bytes"] == 0 and (la / "Roblox" / "keep.txt").exists()

@@ -46,6 +46,7 @@ async function pageRoblox(v) {
     el("div", { class: "section card" }, el("h2", {}, "Maintenance"), el("div", { style: { height: "10px" } }),
       el("div", { class: "row", style: { "flex-wrap": "wrap" } },
         el("button", { class: "btn", onclick: () => rbxPost("/api/roblox/open-folder", {}).catch(fail) }, icon("folder"), "Open Nova Roblox folder"),
+        el("button", { class: "btn", onclick: async () => { try { const c = await rbxPost("/api/roblox/cleanup"); toast(`Cleared ${(c.freed / 1048576).toFixed(1)} MB of Roblox logs and temp files.`, "ok"); } catch (e) { fail(e); } } }, "Clean Roblox logs & temp files"),
         r.registered ? el("button", { class: "btn ghost", onclick: async () => { try { await rbxPost("/api/roblox/unregister"); await rbxRefresh(); toast("Play is back to Roblox's own launcher.", "ok"); } catch (e) { fail(e); } } }, "Stop using Nova for Play") : null),
       el("p", { class: "muted small", style: { margin: "12px 0 0" } }, "Nova Roblox doesn't install Roblox and isn't made by or connected to Roblox Corporation.")));
 }
@@ -65,19 +66,34 @@ async function pageSky(v) {
     const f = el("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif,image/bmp", style: { display: "none" } });
     f.addEventListener("change", async () => {
       if (!f.files[0]) return;
-      try { toast("Converting\u2026"); const png = await toSkyPng(f.files[0]); await api("/api/roblox/sky-upload", { raw: png, filename: "sky.png", face }); await rbxRefresh(); toast("Sky saved to Roblox. Restart Roblox to see it.", "ok"); }
+      try { toast("Converting\u2026"); const png = await toSkyPng(f.files[0]); const res = await api("/api/roblox/sky-upload", { raw: png, filename: "sky.png", face }); await rbxRefresh(); skyDone(res); }
       catch (e) { fail(e); }
     });
     f.click();
   };
   const color = el("input", { type: "color", value: "#6fa8dc", "aria-label": "Sky color" });
+  const skyDone = (res) => toast(res.applied ? "Sky saved to Roblox. Restart Roblox to see it." : r.running ? "Sky saved, but Roblox is open so its files can't change. Close Roblox, then press Apply again." : "Sky saved. Nova couldn't find Roblox's files yet, so it applies when Roblox starts through Nova.", res.applied ? "ok" : "");
+  const apply = async () => { try { const res = await rbxPost("/api/roblox/sky/apply"); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } };
+  const check = async () => {
+    try {
+      const c = await rbxPost("/api/roblox/sky/check"), f = Object.values(c.files), yours = f.filter((x) => x === "yours").length, orig = f.filter((x) => x === "original").length;
+      const lines = [`Roblox ${c.version} from ${c.from}.`, `Sky textures folder: ${c.folder} (${c.found_files} sky files found).`, c.launcher_folder ? `${c.from} keeps mods in ${c.launcher_folder}. Nova puts your sky there too.` : "",
+        !f.some((x) => x !== "default") ? "No custom sky is set." : yours === f.filter((x) => x !== "default").length ? "Your sky is in Roblox's files. If a game still shows the old sky, that game builds its own sky, or Roblox was opened without Nova. Use Open Roblox in Nova, or press Connect and then Play on roblox.com."
+          : orig ? "Roblox's own files are back. An update or a launcher put them back. Press Apply again, then start Roblox from Nova." : "Roblox's sky files couldn't be found in this version of Roblox.",
+        c.running ? "Roblox is open right now. Close it before changing the sky." : "", c.registered ? "" : "Play on roblox.com is not connected to Nova yet, so games started from the website skip your sky."].filter(Boolean);
+      confirmDialog("Sky check", lines.join("\n\n"), "OK", () => {}, false);
+    } catch (e) { fail(e); }
+  };
   put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Sky"), el("p", {}, "Change Roblox's default sky. It applies to every game that uses the default sky, the next time Roblox starts.")),
       el("button", { class: "btn", disabled: !r.sky_folder, onclick: () => rbxPost("/api/roblox/open-folder", { what: "sky" }).catch(fail) }, icon("folder"), "Open sky textures folder")),
     el("div", { class: "section card" }, el("h2", {}, sky.set ? "Custom sky is on" : "Using Roblox's own sky"),
       el("p", { class: "muted small", style: { margin: "4px 0 14px" } }, "Games that build their own sky keep it. Any picture works: Nova cuts a centered square and converts it to the format Roblox uses. Restart Roblox to see a change."),
-      el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "14px" } }, color, el("button", { class: "btn", onclick: async () => { try { await rbxPost("/api/roblox/sky/color", { color: color.value }); await rbxRefresh(); toast("Sky saved to Roblox. Restart Roblox to see it.", "ok"); } catch (e) { fail(e); } } }, "Use this color"),
+      el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "14px" } }, color, el("button", { class: "btn", onclick: async () => { try { const res = await rbxPost("/api/roblox/sky/color", { color: color.value }); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } } }, "Use this color"),
         el("button", { class: "btn", onclick: () => pick("all") }, icon("plus"), "Use one picture for every side"),
-        sky.set ? el("button", { class: "btn ghost", onclick: async () => { try { await rbxPost("/api/roblox/sky/clear"); await rbxRefresh(); toast("Back to Roblox's own sky.", "ok"); } catch (e) { fail(e); } } }, "Back to the default sky") : null)),
+        sky.set ? el("button", { class: "btn ghost", onclick: async () => { try { await rbxPost("/api/roblox/sky/clear"); await rbxRefresh(); toast("Back to Roblox's own sky.", "ok"); } catch (e) { fail(e); } } }, "Back to the default sky") : null),
+      el("div", { class: "muted small", style: { margin: "16px 0 8px" } }, "Ready-made skies"),
+      el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "10px" } }, ...Object.entries(r.sky_presets || {}).map(([k, name]) => el("button", { class: "btn sm", onclick: async () => { try { const res = await rbxPost("/api/roblox/sky/preset", { name: k }); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } } }, name))),
+      el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "10px", "margin-top": "14px" } }, el("button", { class: "btn sm", disabled: !r.version, onclick: apply }, icon("refresh"), "Apply again"), el("button", { class: "btn sm", disabled: !r.version, onclick: check }, "Check sky"))),
     el("div", { class: "section card" }, el("h2", {}, "Each side"), el("div", { style: { height: "8px" } }),
       ...SKY_SIDES.map(([k, name]) => el("div", { class: "toggle-row" }, el("div", { class: "t" }, name, el("small", {}, sky.faces[k] ? "Your picture" : "Roblox's own")),
         el("button", { class: "btn sm", onclick: () => pick(k) }, icon("plus"), sky.faces[k] ? "Change" : "Import")))),
