@@ -186,21 +186,24 @@ def build_routes(app: App):
     @route("POST", "/api/roblox/sky-upload")      # raw PNG/JPEG body; X-Face says which side ("all" for every side)
     def _rbx_sky_set(ctx):
         n = int(ctx.header("Content-Length") or 0)
-        if n <= 0 or n > 32 * 1024 * 1024:
-            raise NovaError("Pick a picture under 32 MB.")
+        if n <= 0 or n > 16 * 1024 * 1024:
+            raise NovaError("That picture is too big.")
         tmp = paths.data_dir() / "sky.new"
         ctx.save_upload(tmp)
         rbx.set_sky_image(ctx.header("X-Face") or "all", tmp)
+        rbx.apply_sky_now()
         return rbx.status()
 
     @route("POST", "/api/roblox/sky/color")
     def _rbx_sky_color(ctx):
         rbx.set_sky_color(str(ctx.body.get("color", "")))
+        rbx.apply_sky_now()
         return rbx.status()
 
     @route("POST", "/api/roblox/sky/clear")
     def _rbx_sky_clear(ctx):
         rbx.clear_sky()
+        rbx.apply_sky_now()
         return rbx.status()
 
     @route("POST", "/api/roblox/open-app")

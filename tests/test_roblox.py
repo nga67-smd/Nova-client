@@ -25,10 +25,41 @@ def _zip(files: dict) -> bytes:
     return b.getvalue()
 
 
-def _png(w=2, h=2):
+def _png(w=512, h=512, color=(0x10, 0x20, 0x30), filt=0, ctype=2):
+    """A PNG of one color or (when color is a function) a gradient, written with the given PNG row filter."""
     def chunk(t, d): return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
-    raw = b"".join(b"\x00" + b"\x10\x20\x30" * w for _ in range(h))
-    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+    chans = {2: 3, 6: 4}[ctype]
+    rows = [bytes(v for x in range(w) for v in ((color(x, y) if callable(color) else color) + ((255,) if ctype == 6 else ()))) for y in range(h)]
+    out, prev = b"", bytes(w * chans)
+    for r in rows:
+        if filt == 0:
+            enc = r
+        elif filt == 1:
+            enc = bytes((r[i] - (r[i - chans] if i >= chans else 0)) & 255 for i in range(len(r)))
+        elif filt == 2:
+            enc = bytes((r[i] - prev[i]) & 255 for i in range(len(r)))
+        elif filt == 3:
+            enc = bytes((r[i] - (((r[i - chans] if i >= chans else 0) + prev[i]) >> 1)) & 255 for i in range(len(r)))
+        else:
+            def paeth(i):
+                a_, b_, c_ = (r[i - chans] if i >= chans else 0), prev[i], (prev[i - chans] if i >= chans else 0)
+                pa, pb, pc = abs(b_ - c_), abs(a_ - c_), abs(a_ + b_ - 2 * c_)
+                return a_ if pa <= pb and pa <= pc else b_ if pb <= pc else c_
+            enc = bytes((r[i] - paeth(i)) & 255 for i in range(len(r)))
+        out += bytes([filt]) + enc
+        prev = r
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, ctype, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(out)) + chunk(b"IEND", b"")
+
+
+def _dxt1_pixel(dds: bytes, x: int, y: int, w: int = 512):
+    """Read one pixel back out of a DXT1 DDS."""
+    assert dds[:4] == b"DDS " and dds[84:88] == b"DXT1"
+    blk = 128 + ((y // 4) * (w // 4) + x // 4) * 8
+    c0, c1, idx = struct.unpack("<HHI", dds[blk:blk + 8])
+    def rgb(c): return ((c >> 11 & 31) * 255 // 31, (c >> 5 & 63) * 255 // 63, (c & 31) * 255 // 31)
+    p0, p1 = rgb(c0), rgb(c1)
+    pal = [p0, p1, tuple((2 * a + b) // 3 for a, b in zip(p0, p1)), tuple((a + 2 * b) // 3 for a, b in zip(p0, p1))]
+    return pal[(idx >> (2 * ((y % 4) * 4 + x % 4))) & 3]
 
 
 @pytest.fixture
@@ -111,24 +142,47 @@ def test_high_optimization_turns_everything_to_lowest_and_back(home):
 
 # ------------------------------------------------------------------ sky
 
+def test_png_reader_handles_every_row_filter_and_color_type(home):
+    grad = lambda x, y: ((x * 3) & 255, (y * 5) & 255, (x + y) & 255)
+    for filt in range(5):
+        for ctype in (2, 6):
+            w, h, rgb = rbx.decode_png(_png(32, 16, grad, filt, ctype))
+            assert (w, h) == (32, 16) and rgb[:3] == bytes(grad(0, 0)) and rgb[(5 * 32 + 7) * 3:(5 * 32 + 7) * 3 + 3] == bytes(grad(7, 5))
+    for bad in (b"", b"GIF89a....", b"\x89PNG\r\n\x1a\n"):
+        with pytest.raises(NovaError):
+            rbx.decode_png(bad)
+
+
+def test_dxt1_file_has_the_layout_roblox_expects_and_keeps_the_colors(home):
+    w, h, rgb = rbx.decode_png(_png(512, 512, lambda x, y: (x // 2, 255 - y // 2, 90)))
+    dds = rbx.encode_dxt1(w, h, rgb)
+    assert len(dds) == 128 + 512 * 512 // 2 and struct.unpack("<II", dds[4:12]) == (124, 0x81007)
+    assert struct.unpack("<II", dds[12:20]) == (512, 512) and struct.unpack("<I", dds[20:24])[0] == 512 * 512 // 2
+    for x, y in ((0, 0), (255, 100), (511, 511), (300, 17)):
+        got, want = _dxt1_pixel(dds, x, y), (x // 2, 255 - y // 2, 90)
+        assert all(abs(a - b) <= 14 for a, b in zip(got, want)), (x, y, got, want)
+
+
 def test_sky_color_and_pictures_become_roblox_sky_files_and_are_restored(home):
     d = _install(home)
     rbx.detect()
     assert rbx.sky_info()["set"] is False
     rbx.set_sky_color("#336699")
     assert rbx.sky_info()["set"] and all(rbx.sky_info()["faces"].values())
-    rbx.build_sky_mod(d)
-    rbx.apply_mods(d)
+    assert rbx.apply_sky_now() is True
     sky = d / "content" / "sky"
-    assert (sky / "sky512_ft.tex").read_bytes().startswith(b"\x89PNG") and (sky / "sky512_up.tex").read_bytes().startswith(b"\x89PNG")
+    for code in ("ft", "up", "bk"):
+        data = (sky / f"sky512_{code}.tex").read_bytes()
+        assert data[:4] == b"DDS " and len(data) == 128 + 512 * 512 // 2
+    r, g, b = _dxt1_pixel((sky / "sky512_ft.tex").read_bytes(), 100, 100)
+    assert abs(r - 0x33) <= 8 and abs(g - 0x66) <= 8 and abs(b - 0x99) <= 8
     up = home / "up.png"
-    up.write_bytes(_png(4, 4))
+    up.write_bytes(_png(512, 512, (250, 0, 0)))
     rbx.set_sky_image("up", up)
-    assert not up.exists() and rbx.sky_info()["faces"]["up"]
+    assert not up.exists() and rbx.apply_sky_now()
+    assert _dxt1_pixel((sky / "sky512_up.tex").read_bytes(), 9, 9)[0] > 230 and _dxt1_pixel((sky / "sky512_ft.tex").read_bytes(), 9, 9)[0] < 80
     rbx.clear_sky()
-    assert rbx.sky_info()["set"] is False
-    rbx.build_sky_mod(d)
-    rbx.apply_mods(d)
+    assert rbx.sky_info()["set"] is False and rbx.apply_sky_now()
     assert (sky / "sky512_ft.tex").read_text() == "orig-ft" and (sky / "sky512_up.tex").read_text() == "orig-up"
     assert rbx.mods_info() == []                                                  # the sky isn't shown as a normal mod
 
@@ -139,6 +193,10 @@ def test_sky_input_is_checked(home):
         f.write_bytes(bad)
         with pytest.raises(NovaError):
             rbx.set_sky_image("all", f)
+        assert not f.exists()
+    f.write_bytes(_png(64, 64))                                                    # not 512x512: the app resizes before sending
+    with pytest.raises(NovaError, match="512x512"):
+        rbx.set_sky_image("all", f)
     f.write_bytes(_png())
     with pytest.raises(NovaError):
         rbx.set_sky_image("ceiling", f)
@@ -149,18 +207,25 @@ def test_sky_input_is_checked(home):
     assert all(rbx.set_sky_image("all", f)["faces"].values())
 
 
-def test_sky_uses_the_file_names_roblox_has_and_falls_back(home):
+def test_sky_goes_where_this_roblox_keeps_its_sky_and_falls_back(home):
     d = _install(home)
-    for code in ("bk", "dn", "ft", "lf", "rt", "up"):                              # a Roblox that names its sky files differently
-        (d / "content" / "sky" / f"sky512_{code}.tex").rename(d / "content" / "sky" / f"sky512_{code}.dds")
-    rbx.detect()
-    rbx.set_sky_color("#ff0000")
-    rbx.build_sky_mod(d)
-    assert sorted(p.name for p in (rbx.mods_dir() / "Nova Sky" / "content" / "sky").iterdir()) == sorted(f"sky512_{c}.dds" for c in ("bk", "dn", "ft", "lf", "rt", "up"))
     import shutil
-    shutil.rmtree(d / "content" / "sky")                                           # no sky folder at all: default names
+    shutil.rmtree(d / "content" / "sky")
+    new = d / "PlatformContent" / "pc" / "textures" / "sky"                          # where current Roblox keeps them
+    new.mkdir(parents=True)
+    for code in ("bk", "dn", "ft", "lf", "rt", "up"):
+        (new / f"sky512_{code}.tex").write_text("orig-" + code)
+    rbx.detect()
+    assert rbx.sky_folder(d) == new
+    rbx.set_sky_color("#ff0000")
+    assert rbx.apply_sky_now() and (new / "sky512_dn.tex").read_bytes()[:4] == b"DDS "
+    rbx.clear_sky()
+    rbx.apply_sky_now()
+    assert (new / "sky512_dn.tex").read_text() == "orig-dn"
+    shutil.rmtree(new)                                                                # no sky files at all: the usual place
+    rbx.set_sky_color("#00ff00")
     rbx.build_sky_mod(d)
-    assert (rbx.mods_dir() / "Nova Sky" / "content" / "sky" / "sky512_ft.tex").exists()
+    assert (rbx.mods_dir() / "Nova Sky" / "PlatformContent/pc/textures/sky/sky512_ft.tex").exists()
 
 
 # ------------------------------------------------------------------ mods
@@ -222,7 +287,7 @@ def test_start_runs_the_found_roblox_with_flags_sky_and_mods(home, monkeypatch):
     rbx.start()
     exe = str(d / "RobloxPlayerBeta.exe")
     assert calls == [[exe, "--app"], [exe, "roblox://experiences/start?placeId=3"], [exe]]
-    assert (d / "ClientSettings" / "ClientAppSettings.json").exists() and (d / "content/sky/sky512_ft.tex").read_bytes().startswith(b"\x89PNG")
+    assert (d / "ClientSettings" / "ClientAppSettings.json").exists() and (d / "content/sky/sky512_ft.tex").read_bytes()[:4] == b"DDS "
 
 
 def _main(monkeypatch, *args):
@@ -299,6 +364,7 @@ def test_http_routes(home, monkeypatch):
     assert call("POST", "/api/roblox/sky/color", {"color": "#336699"})[1]["sky"]["set"] is True
     assert call("POST", "/api/roblox/sky-upload", raw=b"nope", hdr={"X-Face": "up"})[0] == 400
     assert call("POST", "/api/roblox/sky-upload", raw=_png(), hdr={"X-Face": "up"})[0] == 200
+    assert (d / "content" / "sky" / "sky512_up.tex").read_bytes()[:4] == b"DDS "
     assert call("POST", "/api/roblox/sky/clear")[1]["sky"]["set"] is False
     code, st = call("POST", "/api/roblox/mods-upload", raw=_zip({"content/sky/s.png": "s"}), hdr={"X-Filename": "Sky.zip"})
     assert code == 200 and st["mods"][0]["name"] == "Sky"

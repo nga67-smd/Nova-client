@@ -118,8 +118,9 @@ from Bloxstrap, Voidstrap or Fishstrap) and tunes and opens that one.
 
 - **Play from roblox.com**: press *Connect* once, then *Play* on roblox.com opens Roblox through Nova. When a newer
   Roblox is out, the game is handed to Roblox's own launcher first so it can update. Sign-in stays in your browser.
-- **Sky**: pick a color or pictures (one for every side, or each side) to replace Roblox's default sky in every game
-  that doesn't build its own. A button opens Roblox's sky textures folder.
+- **Sky**: pick a color or any picture (one for every side, or each side). Nova cuts a square, converts it to the
+  512x512 DXT1 `.tex` files Roblox uses and puts them over its default sky, so every game that doesn't build its own sky
+  changes. A button opens Roblox's sky textures folder. Restart Roblox to see a change.
 - **FastFlags**: *High optimization* (lowest quality everywhere: no shadows, post effects or grass, lowest textures),
   presets (FPS limit, graphics API, ...) and your own flags. Roblox ignores flags it doesn't allow.
 - **Mods**: import a `.zip` of Roblox files (cursors, sounds, fonts). Switching a mod off puts the originals back.
