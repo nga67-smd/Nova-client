@@ -89,12 +89,39 @@ const FONTS = {
   serif: 'Georgia, "Iowan Old Style", "Times New Roman", serif',
 };
 const SURFACE_VARS = ["--bg", "--panel", "--raised", "--raised2", "--line", "--line2"];
+// ---- button look: colors, style, shape, size, hover (validated by the server)
+const BTN_SHAPES = { square: "3px", rounded: "10px", pill: "999px" };
+const BTN_SIZES = { small: ["6px", "12px", ".9em"], normal: ["9px", "16px", "1em"], large: ["13px", "24px", "1.1em"] };
+function lum(hex) { const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; }
+const onColor = (hex) => lum(hex) > 0.4 ? "#10101a" : "#ffffff";
+function applyButtons(s) {
+  const r = document.documentElement, st = r.style, set = (k, v) => v === null ? st.removeProperty(k) : st.setProperty(k, v);
+  const c1 = s.btn_color || "", c2 = s.btn_color2 || "", style = s.btn_style || "gradient";
+  r.dataset.btnHover = s.btn_hover || "brighten"; r.dataset.btnCaps = s.btn_caps ? "on" : "off";
+  set("--btn-r", BTN_SHAPES[s.btn_shape] || null);
+  const [py, px, fs] = BTN_SIZES[s.btn_size] || BTN_SIZES.normal;
+  set("--btn-py", s.btn_size && s.btn_size !== "normal" ? py : null); set("--btn-px", s.btn_size && s.btn_size !== "normal" ? px : null); set("--btn-fs", s.btn_size && s.btn_size !== "normal" ? fs : null);
+  set("--btn-bw", s.btn_border === 1 || s.btn_border === undefined ? null : s.btn_border + "px");
+  const a = c1 || s.accent, b = c2 || (c1 ? c1 : s.accent2);       // the colors a button is built from
+  set("--btn-c1", c1 || null);
+  const plain = style === "gradient" && !c1 && !c2;                  // untouched: exactly the theme's own gradient
+  let fill = null, on = null, edgeC = null, shadow = null, blur = null;
+  if (!plain) {
+    if (style === "gradient") { fill = `linear-gradient(135deg, ${a}, ${b})`; on = onColor(lum(a) > lum(b) ? a : b); edgeC = "transparent"; }
+    else if (style === "solid") { fill = a; on = onColor(a); edgeC = "transparent"; shadow = "none"; }
+    else if (style === "outline") { fill = "transparent"; on = lum(a) < 0.12 ? "#ffffff" : a; edgeC = a; shadow = "none"; }
+    else if (style === "soft") { fill = `color-mix(in srgb, ${a} 22%, transparent)`; on = `color-mix(in srgb, ${a} 55%, white)`; edgeC = `color-mix(in srgb, ${a} 40%, transparent)`; shadow = "none"; }
+    else if (style === "glass") { fill = "rgba(255, 255, 255, .09)"; on = "var(--text)"; edgeC = "rgba(255, 255, 255, .26)"; shadow = "inset 0 1px 0 rgba(255, 255, 255, .22)"; blur = "blur(8px)"; }
+  }
+  set("--btn-fill", fill); set("--btn-on", on); set("--btn-edge", edgeC); set("--btn-shadow", shadow); set("--btn-blur", blur);
+}
 S.bgv = 0;
 function applyTheme() {
   const s = S.data.settings, r = document.documentElement, st = r.style;
   st.setProperty("--accent", s.accent); st.setProperty("--accent2", s.accent2);
   st.setProperty("--radius", s.radius + "px"); st.setProperty("--scale", s.font_scale / 100);
   r.dataset.surface = s.surface; r.dataset.density = s.density;
+  applyButtons(s);
   r.dataset.glow = s.glow ? "on" : "off"; r.dataset.anim = s.animations ? "on" : "off"; r.dataset.stars = s.starfield ? "on" : "off";
   stars.enabled = !!s.starfield;
   // custom page color: derive every surface from it
@@ -687,6 +714,8 @@ async function pageSettings(v) {
   const pickMedia = () => { const f = el("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm,.png,.jpg,.jpeg,.webp,.gif,.mp4,.webm" });
     f.addEventListener("change", async () => { if (!f.files[0]) return; try { toast("Importing\u2026"); S.data.settings = await api("/api/look/media-upload", { raw: f.files[0], filename: f.files[0].name }); S.bgv++; applyTheme(); render(); toast("Background imported.", "ok"); } catch (e) { fail(e); } }); f.click(); };
   drawColors();
+  const segField = (label, key, opts) => field(label, el("div", { class: "seg", role: "group" }, opts.map(([k, l]) => el("button", { "aria-pressed": String((S.data.settings[key] || opts[0][0]) === k), onclick: async () => { await set({ [key]: k }); render(); } }, l))));
+  const btnColor = (label, key, fallback) => { const c = el("input", { type: "color", value: S.data.settings[key] || fallback, "aria-label": label }); c.addEventListener("change", async () => { await set({ [key]: c.value }); render(); }); return el("div", { class: "row" }, c, el("span", {}, label)); };
   const range = (key, min, max, fmt) => { const out = el("b", {}, fmt(s[key])); const r = el("input", { type: "range", min, max, value: s[key], "aria-label": key }); r.addEventListener("input", () => { out.textContent = fmt(+r.value); set({ [key]: +r.value }); }); return el("div", { class: "row" }, el("div", { class: "grow" }, r), out); };
   const javaIn = el("input", { type: "text", value: s.java_path, placeholder: "Automatic" }); javaIn.addEventListener("change", () => set({ java_path: javaIn.value.trim() }));
   const gj = el("input", { type: "text", value: s.global_jvm_args, placeholder: "-Dexample=1" }); gj.addEventListener("change", () => set({ global_jvm_args: gj.value }));
@@ -717,6 +746,17 @@ async function pageSettings(v) {
       toggleRow("Pause animated backgrounds while Minecraft runs", "Frees up CPU and GPU for the game.", s.bg_pause_in_game, (c) => set({ bg_pause_in_game: c }))),
     el("div", { class: "section card" }, el("h2", {}, "Layout"), el("div", { style: { height: "14px" } }), el("div", { class: "fields" }, field("Corner roundness", range("radius", 0, 28, (x) => x + " px")), field("Text size", range("font_scale", 80, 140, (x) => x + "%"))),
       el("div", { style: { height: "14px" } }), field("Density", el("div", { class: "seg", role: "group" }, [["comfortable", "Comfortable"], ["compact", "Compact"]].map(([k, l]) => el("button", { "aria-pressed": String(S.data.settings.density === k), onclick: async () => { await set({ density: k }); render(); } }, l))))),
+    el("div", { class: "section card" }, el("div", { class: "row" }, el("h2", { class: "grow" }, "Buttons"), el("button", { class: "btn sm", onclick: async () => { await set({ btn_style: "gradient", btn_shape: "theme", btn_color: "", btn_color2: "", btn_size: "normal", btn_hover: "brighten", btn_caps: false, btn_border: 1 }); render(); toast("Buttons reset.", "ok"); } }, "Reset buttons")),
+      el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Make buttons look however you like. Changes show on the preview and everywhere in Nova right away."),
+      el("div", { class: "btn-preview", "aria-label": "Button preview" }, el("button", { class: "btn primary" }, "Play"), el("button", { class: "btn" }, "Settings"), el("button", { class: "btn ghost" }, "Cancel"), el("button", { class: "btn danger" }, "Delete"), el("button", { class: "btn primary sm" }, "Small")),
+      segField("Style", "btn_style", [["gradient", "Gradient"], ["solid", "Solid"], ["outline", "Outline"], ["soft", "Soft"], ["glass", "Glass"]]),
+      el("div", { style: { height: "14px" } }), segField("Shape", "btn_shape", [["theme", "Follow corners"], ["square", "Square"], ["rounded", "Rounded"], ["pill", "Pill"]]),
+      el("div", { style: { height: "14px" } }), segField("Size", "btn_size", [["small", "Small"], ["normal", "Normal"], ["large", "Large"]]),
+      el("div", { style: { height: "14px" } }), segField("On hover", "btn_hover", [["brighten", "Brighten"], ["lift", "Lift"], ["glow", "Glow"], ["none", "Nothing"]]),
+      el("div", { style: { height: "14px" } }), el("div", { class: "fields" }, field("Border width", range("btn_border", 0, 3, (x) => x + " px"))),
+      el("div", { style: { height: "14px" } }), el("div", { class: "btn-colors" }, btnColor("Button color", "btn_color", s.accent), btnColor("Second color (gradient)", "btn_color2", s.accent2),
+        s.btn_color || s.btn_color2 ? el("button", { class: "btn sm", onclick: async () => { await set({ btn_color: "", btn_color2: "" }); render(); } }, "Use theme colors") : el("span", { class: "muted small" }, "Using your theme colors")),
+      toggleRow("Capital letters", "Shows button text in UPPERCASE.", s.btn_caps, (c) => set({ btn_caps: c }))),
     el("div", { class: "section card" }, el("h2", {}, "Effects"), toggleRow("Starfield background", "Slowly drifting stars behind the interface.", s.starfield, (c) => set({ starfield: c })), toggleRow("Glow", "Violet glow on buttons and the background.", s.glow, (c) => set({ glow: c })), toggleRow("Animations", "Turn off to save battery on laptops.", s.animations, (c) => set({ animations: c }))),
     el("div", { class: "section card" }, el("h2", {}, "Game"), el("div", { style: { height: "10px" } }),
       toggleRow("Download Java automatically", "Nova fetches the right Java version when none is installed.", s.auto_download_java, (c) => set({ auto_download_java: c })),
