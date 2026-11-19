@@ -17,9 +17,6 @@ LOOK_DEFAULTS = {
     "gradient": "", "angle": 160, "pattern": "none", "pattern_opacity": 12, "overlay": 35,
     "font": "system", "radius": 14, "font_scale": 100, "density": "comfortable",
     "glow": True, "starfield": True, "look_name": "",
-    # buttons: style / shape / colors / size / hover / caps / border width
-    "btn_style": "gradient", "btn_shape": "theme", "btn_color": "", "btn_color2": "", "btn_size": "normal",
-    "btn_hover": "brighten", "btn_caps": False, "btn_border": 1,
 }
 LOOK_KEYS = tuple(LOOK_DEFAULTS)
 ENUMS = {
@@ -29,13 +26,9 @@ ENUMS = {
     "font": ("system", "rounded", "mono", "serif"),
     "density": ("comfortable", "compact"),
     "surface": ("oled", "void", "nebula"),
-    "btn_style": ("gradient", "solid", "outline", "soft", "glass"),
-    "btn_shape": ("theme", "square", "rounded", "pill"),
-    "btn_size": ("small", "normal", "large"),
-    "btn_hover": ("brighten", "lift", "glow", "none"),
 }
-INT_RANGES = {"angle": (0, 360), "pattern_opacity": (0, 60), "overlay": (0, 85), "radius": (0, 28), "font_scale": (85, 125), "btn_border": (0, 3)}
-BOOLS = ("glow", "starfield", "btn_caps")
+INT_RANGES = {"angle": (0, 360), "pattern_opacity": (0, 60), "overlay": (0, 85), "radius": (0, 28), "font_scale": (85, 125)}
+BOOLS = ("glow", "starfield")
 
 
 # ------------------------------------------------------------------ color helpers
@@ -73,16 +66,6 @@ def clamp_accent(h: str) -> str:
         h = _scale(h, 0.92)
     for _ in range(40):
         if luminance(h) >= 0.05:
-            break
-        h = _toward_white(h, 0.1)
-    return h
-
-
-def lift_dark(h: str) -> str:
-    """Button colors may be any brightness (text on them picks black or white itself), but a nearly black
-    button would vanish on Nova's dark background."""
-    for _ in range(40):
-        if luminance(h) >= 0.04:
             break
         h = _toward_white(h, 0.1)
     return h
@@ -137,11 +120,6 @@ def sanitize(patch: dict) -> dict:
             if k in ("accent", "accent2"):
                 if isinstance(v, str) and HEX.match(v):
                     out[k] = clamp_accent(v.lower())
-            elif k in ("btn_color", "btn_color2"):
-                if v == "" or v is None:
-                    out[k] = ""
-                elif isinstance(v, str) and HEX.match(v):
-                    out[k] = lift_dark(v.lower())
             elif k == "base":
                 if v == "" or v is None:
                     out[k] = ""

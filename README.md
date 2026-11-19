@@ -39,7 +39,6 @@ installer jar from optifine.net, since it has no public download API).
 **Customization**
 - 27 themes, custom colors, animated and imported backgrounds (see below), three surface depths
 - Corner roundness, text size, density, starfield, glow and animation toggles
-- Custom buttons: style (gradient, solid, outline, soft, glass), shape, size, colors, hover effect, border and capitals, saved with your looks
 - Separate instances with their own mods, settings, Java and JVM args
 - Duplicate, export and import instances
 - Mods, shaders and resource packs from **Modrinth and CurseForge**, with required dependencies and update checks

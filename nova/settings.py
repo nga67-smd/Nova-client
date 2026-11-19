@@ -35,8 +35,6 @@ DEFAULTS = {
     # custom look (validated by look.sanitize)
     "base": "", "bg_mode": "surface", "gradient": "", "angle": 160, "pattern": "none", "pattern_opacity": 12,
     "overlay": 35, "font": "system", "look_name": "", "motion": "none",
-    "btn_style": "gradient", "btn_shape": "theme", "btn_color": "", "btn_color2": "", "btn_size": "normal",
-    "btn_hover": "brighten", "btn_caps": False, "btn_border": 1,
     "bg_media": "",                  # "", "image" or "video": what the imported background file is
     "bg_pause_in_game": True,        # pause animated backgrounds while Minecraft is running
     "ms_client_id": "",              # Azure app (client) ID for Microsoft sign-in
