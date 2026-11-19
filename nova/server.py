@@ -191,20 +191,43 @@ def build_routes(app: App):
         tmp = paths.data_dir() / "sky.new"
         ctx.save_upload(tmp)
         rbx.set_sky_image(ctx.header("X-Face") or "all", tmp)
-        rbx.apply_sky_now()
-        return rbx.status()
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
 
     @route("POST", "/api/roblox/sky/color")
     def _rbx_sky_color(ctx):
         rbx.set_sky_color(str(ctx.body.get("color", "")))
-        rbx.apply_sky_now()
-        return rbx.status()
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
+
+    @route("POST", "/api/roblox/sky/preset")
+    def _rbx_sky_preset(ctx):
+        rbx.set_sky_preset(str(ctx.body.get("name", "")))
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
+
+    @route("POST", "/api/roblox/cleanup")
+    def _rbx_cleanup(ctx):
+        return rbx.cleanup()
+
+    @route("GET", "/api/roblox/cleanup-info")
+    def _rbx_cleanup_info(ctx):
+        return rbx.cleanup_info()
+
+    @route("POST", "/api/roblox/sky/check")
+    def _rbx_sky_check(ctx):
+        return {**rbx.sky_check(), "running": app.roblox_running()}
+
+    @route("POST", "/api/roblox/sky/apply")
+    def _rbx_sky_apply(ctx):
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
 
     @route("POST", "/api/roblox/sky/clear")
     def _rbx_sky_clear(ctx):
         rbx.clear_sky()
-        rbx.apply_sky_now()
-        return rbx.status()
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
 
     @route("POST", "/api/roblox/open-app")
     def _rbx_open_app(ctx):

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import shutil
 import struct
@@ -250,39 +251,73 @@ def _wanted_mod_files() -> dict[str, Path]:
     return want
 
 
-def apply_mods(vdir: Path) -> int:
-    """Lay enabled mods over the game folder; put the original file back when a mod is switched off or removed."""
-    log_file, backup = root() / "mods_applied.json", root() / "ModBackup"
-    applied: dict = read_json(log_file, {}) or {}
-    if applied.get("_version") != vdir.name:                      # a fresh install has nothing of ours in it
-        applied = {"_version": vdir.name}
+def overlay_dir() -> Path | None:
+    """The Modifications folder of a Bloxstrap-style launcher, when that is where the found Roblox comes from. Those launchers
+    check Roblox's files every time they start it and put back anything that isn't in their Modifications folder."""
+    src = _state().get("from", "")
+    base = os.environ.get("LOCALAPPDATA")
+    if base and src in ("Bloxstrap", "Voidstrap", "Fishstrap"):
+        return Path(base) / src / "Modifications"
+    return None
+
+
+def _lay_over(target: Path, key: str, want: dict[str, Path]) -> None:
+    """Copy mod files over a folder, remembering what was there, and undo it for files that are no longer wanted."""
+    log_file, backup = root() / "mods_applied.json", root() / "ModBackup" / key
+    log: dict = read_json(log_file, {}) or {}
+    if "_version" in log:                                         # written by an earlier Nova: keep what it remembered
+        old = root() / "ModBackup"
+        if old.is_dir():
+            (old / "game").mkdir(exist_ok=True)
+            for item in list(old.iterdir()):
+                if item.name not in ("game", "overlay"):
+                    shutil.move(str(item), str(old / "game" / item.name))
+        st_dir = _state().get("dir", "")
+        log = {"game": {"_target": st_dir if Path(st_dir).name == log["_version"] else "", "files": log.get("files", {})}}
+    applied = log.get(key) or {}
+    if applied.get("_target") != str(target):                     # a new game folder (an update) has nothing of ours in it
+        applied = {"_target": str(target)}
         shutil.rmtree(backup, ignore_errors=True)
     files = applied.setdefault("files", {})
-    want = _wanted_mod_files()
     for rel in list(files):
         if rel not in want:
-            target = vdir / rel
+            dest = target / rel
             if files[rel]:
                 b = backup / rel
                 if b.exists():
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(b, target)
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(b, dest)
             else:
-                target.unlink(missing_ok=True)
+                dest.unlink(missing_ok=True)
             del files[rel]
     for rel, src in want.items():
-        target = (vdir / rel).resolve()
-        if vdir.resolve() not in target.parents:
+        dest = (target / rel).resolve()
+        if target.resolve() not in dest.parents:
             continue
         if rel not in files:
-            had = target.exists()
+            had = dest.exists()
             if had:
                 (backup / rel).parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(target, backup / rel)
+                shutil.copy2(dest, backup / rel)
             files[rel] = had
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, target)
-    write_json(log_file, applied)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+    log[key] = applied
+    write_json(log_file, log)
+
+
+def apply_mods(vdir: Path) -> int:
+    """Lay enabled mods over the game folder (and a Bloxstrap-style launcher's Modifications folder, so it keeps them)."""
+    want = _wanted_mod_files()
+    ov = overlay_dir()
+    if ov:
+        try:
+            _lay_over(ov, "overlay", want)
+        except OSError:
+            pass
+    elif (read_json(root() / "mods_applied.json", {}) or {}).get("overlay"):
+        _lay_over(Path(read_json(root() / "mods_applied.json", {})["overlay"]["_target"]), "overlay", {})   # left that launcher: clean up
+    _lay_over(vdir, "game", want)
     return len(want)
 
 
@@ -441,6 +476,46 @@ def set_sky_color(color: str) -> dict:
     return sky_info()
 
 
+SKY_PRESETS = {
+    "sunset": ("Sunset", (38, 28, 92), (255, 120, 70), (60, 24, 40), False),
+    "night": ("Starry night", (4, 6, 24), (22, 30, 70), (6, 8, 20), True),
+    "pastel": ("Pastel", (170, 200, 255), (255, 210, 235), (255, 235, 245), False),
+    "space": ("Deep space", (0, 0, 8), (24, 8, 44), (0, 0, 6), True),
+    "ocean": ("Ocean", (20, 90, 160), (150, 225, 235), (10, 60, 90), False),
+}
+
+
+def _mix(a, b, t):
+    return tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))
+
+
+def preset_pixels(name: str, face: str) -> bytes:
+    _, top, horizon, bottom, stars = SKY_PRESETS[name]
+    n = SKY_SIZE
+    rows = []
+    for y in range(n):
+        t = y / (n - 1)
+        c = top if face == "up" else bottom if face == "down" else _mix(top, horizon, t ** 1.5)
+        rows.append(bytearray(bytes(c) * n))
+    if stars and face != "down":
+        rnd = random.Random(f"{name}{face}")
+        for _ in range(60 if face == "up" else 35):
+            x, y = rnd.randrange(n - 1), rnd.randrange(n - 1 if face == "up" else n // 2)
+            v = rnd.choice((150, 200, 255))
+            for dx, dy in (((0, 0), (1, 0), (0, 1), (1, 1)) if v > 220 else ((0, 0),)):
+                rows[y + dy][(x + dx) * 3:(x + dx) * 3 + 3] = bytes((v, v, v))
+    return b"".join(bytes(r) for r in rows)
+
+
+def set_sky_preset(name: str) -> dict:
+    if name not in SKY_PRESETS:
+        raise NovaError("Unknown sky style.")
+    clear_sky()
+    for face in SKY_FACES:
+        (_sky_dir() / f"{face}.dds").write_bytes(encode_dxt1(SKY_SIZE, SKY_SIZE, preset_pixels(name, face)))
+    return sky_info()
+
+
 def set_sky_image(face: str, tmp: Path) -> dict:
     """Use a 512x512 PNG for one side of the sky, or ('all') for every side."""
     try:
@@ -502,6 +577,28 @@ def build_sky_mod(vdir: Path) -> None:
         for rel in where.get(code) or [Path(SKY_DEFAULT_DIRS[0]) / f"sky512_{code}.tex"]:
             (target / rel).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(src, target / rel)
+
+
+def sky_check() -> dict:
+    """Is Nova's sky really in the game files right now, and what else could be undoing it?"""
+    vdir = version_dir()
+    where = sky_files(vdir)
+    files = {}
+    for face, code in SKY_FACES.items():
+        mine = _face_file(face)
+        paths_ = where.get(code) or []
+        if not mine:
+            files[face] = "default"
+        elif not paths_:
+            files[face] = "missing"
+        else:
+            try:
+                files[face] = "yours" if all((vdir / p).read_bytes() == mine.read_bytes() for p in paths_) else "original"
+            except OSError:
+                files[face] = "missing"
+    ov = overlay_dir()
+    return {"folder": str(sky_folder(vdir)), "version": vdir.name, "from": _state().get("from", ""), "launcher_folder": str(ov) if ov else "",
+            "files": files, "found_files": sum(len(v) for v in where.values()), "registered": protocol_registered()}
 
 
 def apply_sky_now() -> bool:
@@ -623,4 +720,35 @@ def status() -> dict:
     return {"supported": supported(), "version": v, "from": st.get("from", "") if v else "", "found": existing_installs()[:3],
             "registered": protocol_registered(), "flags": flags,
             "presets": {k: {"name": p["name"], "desc": p["desc"]} for k, p in PRESETS.items()}, "preset_on": preset_states(flags),
-            "sky": sky_info(), "mods": mods_info(), "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}
+            "sky": sky_info(), "sky_presets": {k: v[0] for k, v in SKY_PRESETS.items()}, "mods": mods_info(), "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}
+
+
+def _junk_dirs() -> list[Path]:
+    """Roblox's logs and temporary files. Safe to delete; Roblox recreates them."""
+    out = []
+    la, tmp = os.environ.get("LOCALAPPDATA"), os.environ.get("TEMP") or os.environ.get("TMP")
+    if la:
+        out.append(Path(la) / "Roblox" / "logs")
+    if tmp:
+        out.append(Path(tmp) / "Roblox")
+    return [d for d in out if d.is_dir()]
+
+
+def _tree_size(d: Path) -> int:
+    return sum(f.stat().st_size for f in d.rglob("*") if f.is_file())
+
+
+def cleanup_info() -> dict:
+    return {"bytes": sum(_tree_size(d) for d in _junk_dirs())}
+
+
+def cleanup() -> dict:
+    freed = 0
+    for d in _junk_dirs():
+        for f in d.iterdir():
+            try:
+                freed += _tree_size(f) if f.is_dir() else f.stat().st_size
+                shutil.rmtree(f) if f.is_dir() else f.unlink()
+            except OSError:
+                pass                                       # in use by a running Roblox
+    return {"freed": freed}
