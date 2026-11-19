@@ -21,7 +21,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (__version__, accounts, btnart, cosmetics, curseforge, hudmod, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths,
+from . import (__version__, IS_ROBLOX, accounts, btnart, cosmetics, curseforge, hudmod, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths, roblox as rbx,
                settings as settingsmod, versions)
 from . import look
 from .util import NovaError, TaskManager, human_size, dir_size, slugify
@@ -65,6 +65,8 @@ class App:
         self.port = 0
         self.ms_flows: dict[str, threading.Event] = {}
         self.httpd: ThreadingHTTPServer | None = None
+        self.rbx_proc = None             # the running Roblox, if Nova started it
+        self.pending_uri: str | None = None   # a roblox.com launch link waiting for an update to finish
         self.ui_ok = threading.Event()   # set once the window has really drawn the page
 
     # ------------------------------------------------------------- state
@@ -77,9 +79,29 @@ class App:
         v["mod_count"] = sum(1 for f in mdir.glob("*.jar")) if mdir.exists() else 0
         return v
 
+    def roblox_running(self) -> bool:
+        return bool(self.rbx_proc and self.rbx_proc.poll() is None)
+
+    def start_roblox_install(self):
+        if any(x["kind"] == "roblox-install" and x["status"] == "running" for x in self.tasks.list()):
+            raise NovaError("Roblox is already being installed.")
+
+        def work(task):
+            v = rbx.install(task)
+            uri, self.pending_uri = self.pending_uri, None
+            if uri:
+                self.roblox_play(uri)
+            return {"version": v}
+        return self.tasks.run("Install Roblox", work, kind="roblox-install")
+
+    def roblox_play(self, uri: str | None = None) -> None:
+        self.rbx_proc = rbx.start(uri)
+        self.rbx_started = time.time()
+
     def state(self) -> dict:
         accs = accounts.load()
         return {
+            "app": "roblox" if IS_ROBLOX else "minecraft", "roblox": {**rbx.status(), "running": self.roblox_running()},
             "version": __version__,
             "settings": settingsmod.load(), "look_defaults": look.LOOK_DEFAULTS, "my_themes": look.load_user_themes(),
             "themes": look.THEMES, "btn_art": btnart.load(), "curseforge_key_set": curseforge.has_key(),
@@ -153,6 +175,75 @@ def build_routes(app: App):
         if settingsmod.load().get("theme_preset") == tid:
             settingsmod.update({"theme_preset": "custom"})
         return {"my_themes": look.load_user_themes(), "settings": settingsmod.load()}
+
+    # ---- Roblox (the NovaRoblox app)
+    @route("POST", "/api/roblox/check")
+    def _rbx_check(ctx):
+        latest = rbx.latest_version()
+        cur = rbx.installed_version()
+        return {"latest": latest, "installed": cur, "update": bool(cur and cur != latest)}
+
+    @route("POST", "/api/roblox/install")
+    def _rbx_install(ctx):
+        return app.start_roblox_install().to_dict()
+
+    @route("POST", "/api/roblox/open-site")
+    def _rbx_site(ctx):
+        import webbrowser
+        webbrowser.open("https://www.roblox.com/games")
+        return {"ok": True}
+
+    @route("POST", "/api/roblox/register")
+    def _rbx_register(ctx):
+        rbx.register_protocol()
+        return rbx.status()
+
+    @route("POST", "/api/roblox/unregister")
+    def _rbx_unregister(ctx):
+        rbx.unregister_protocol()
+        return rbx.status()
+
+    @route("POST", "/api/roblox/uninstall")
+    def _rbx_uninstall(ctx):
+        if app.roblox_running():
+            raise NovaError("Close Roblox first.")
+        rbx.uninstall()
+        return rbx.status()
+
+    @route("POST", "/api/roblox/flags")
+    def _rbx_flags(ctx):
+        rbx.save_flags(ctx.body.get("flags", {}))
+        return rbx.status()
+
+    @route("POST", "/api/roblox/preset")
+    def _rbx_preset(ctx):
+        rbx.apply_preset(str(ctx.body.get("id", "")), bool(ctx.body.get("on")))
+        return rbx.status()
+
+    @route("POST", "/api/roblox/mods-upload")      # raw .zip body
+    def _rbx_mod_add(ctx):
+        n = int(ctx.header("Content-Length") or 0)
+        if n <= 0 or n > 512 * 1024 * 1024:
+            raise NovaError("Pick a .zip under 512 MB.")
+        tmp = paths.data_dir() / "mod.zip.new"
+        ctx.save_upload(tmp)
+        rbx.import_mod_zip(tmp, ctx.header("X-Filename"))
+        return rbx.status()
+
+    @route("POST", "/api/roblox/mods/toggle")
+    def _rbx_mod_toggle(ctx):
+        rbx.set_mod_enabled(str(ctx.body.get("name", "")), bool(ctx.body.get("enabled")))
+        return rbx.status()
+
+    @route("POST", "/api/roblox/mods/delete")
+    def _rbx_mod_del(ctx):
+        rbx.delete_mod(str(ctx.body.get("name", "")))
+        return rbx.status()
+
+    @route("POST", "/api/roblox/open-folder")
+    def _rbx_folder(ctx):
+        paths.open_in_file_manager(rbx.mods_dir() if ctx.body.get("what") == "mods" else rbx.root())
+        return {"ok": True}
 
     @route("POST", "/api/button-art-upload")      # raw picture body; X-Slot says which button
     def _btn_art_set(ctx):

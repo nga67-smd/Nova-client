@@ -155,6 +155,7 @@ function renderRail() {
   for (const [id, label, ic] of NAV) {
     nav.append(el("button", { "aria-current": (S.page === id || (S.page === "instance" && id === "library")) ? "page" : false, onclick: () => go(id) }, icon(ic), el("span", {}, label)));
   }
+  if (S.data.app === "roblox") { $("#profile").hidden = true; $("#ver").textContent = "Nova Roblox " + S.data.version; return; }
   const acc = S.data.accounts.find((a) => a.id === S.data.selected_account) || S.data.accounts[0];
   const p = $("#profile"); p.replaceChildren();
   p.onclick = () => go("profiles");
@@ -171,7 +172,7 @@ function go(page, inst, tab) {
 async function render() {
   const v = $("#view"); v.replaceChildren();
   try {
-    const fn = { library: pageLibrary, discover: pageDiscover, profiles: pageProfiles, cosmetics: pageCosmetics, settings: pageSettings, instance: pageInstance }[S.page];
+    const fn = { library: pageLibrary, discover: pageDiscover, profiles: pageProfiles, cosmetics: pageCosmetics, settings: pageSettings, instance: pageInstance, ...(window.RBX_PAGES || {}) }[S.page];
     await fn(v);
   } catch (e) { v.replaceChildren(el("div", { class: "empty" }, el("h2", {}, "Something went wrong"), el("p", {}, e.message))); }
 }
@@ -706,7 +707,7 @@ async function pageSettings(v) {
   const range = (key, min, max, fmt) => { const out = el("b", {}, fmt(s[key])); const r = el("input", { type: "range", min, max, value: s[key], "aria-label": key }); r.addEventListener("input", () => { out.textContent = fmt(+r.value); set({ [key]: +r.value }); }); return el("div", { class: "row" }, el("div", { class: "grow" }, r), out); };
   const javaIn = el("input", { type: "text", value: s.java_path, placeholder: "Automatic" }); javaIn.addEventListener("change", () => set({ java_path: javaIn.value.trim() }));
   const gj = el("input", { type: "text", value: s.global_jvm_args, placeholder: "-Dexample=1" }); gj.addEventListener("change", () => set({ global_jvm_args: gj.value }));
-  v.append(el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Settings"), el("p", {}, "Make Nova look and behave the way you like. Changes apply instantly."))),
+  v.append(el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, S.data.app === "roblox" ? "Appearance" : "Settings"), el("p", {}, "Make Nova look and behave the way you like. Changes apply instantly."))),
     el("div", { class: "section card" }, el("div", { class: "row" }, el("h2", { class: "grow" }, "Themes"), el("button", { class: "btn sm", onclick: saveLook }, icon("plus"), "Save current look")),
       el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Pick a theme, then change anything below. \u25b6 marks animated themes."), galBox,
       (S.data.my_themes || []).length ? el("div", {}, el("h3", { style: { margin: "18px 0 10px" } }, "My themes"), myBox) : null,
@@ -730,7 +731,7 @@ async function pageSettings(v) {
         s.bg_media ? el("button", { class: "btn ghost", onclick: async () => { S.data.settings = await api("/api/look/media", { method: "DELETE" }); applyTheme(); render(); } }, "Remove imported background") : null,
         el("button", { class: "btn ghost", onclick: async () => { await set(S.data.look_defaults); render(); toast("Back to Nova's original look.", "ok"); } }, "Reset look")),
       el("p", { class: "muted small", style: { margin: "10px 0 0" } }, "PNG, JPEG, WebP and GIF (up to 8 MB), or MP4 / WebM video (up to 64 MB). GIFs and videos animate. Short, looping, 1080p-or-smaller clips run best."),
-      toggleRow("Pause animated backgrounds while Minecraft runs", "Frees up CPU and GPU for the game.", s.bg_pause_in_game, (c) => set({ bg_pause_in_game: c }))),
+      toggleRow("Pause animated backgrounds while " + (S.data.app === "roblox" ? "Roblox" : "Minecraft") + " runs", "Frees up CPU and GPU for the game.", s.bg_pause_in_game, (c) => set({ bg_pause_in_game: c }))),
     el("div", { class: "section card" }, el("h2", {}, "Layout"), el("div", { style: { height: "14px" } }), el("div", { class: "fields" }, field("Corner roundness", range("radius", 0, 28, (x) => x + " px")), field("Text size", range("font_scale", 80, 140, (x) => x + "%"))),
       el("div", { style: { height: "14px" } }), field("Density", el("div", { class: "seg", role: "group" }, [["comfortable", "Comfortable"], ["compact", "Compact"]].map(([k, l]) => el("button", { "aria-pressed": String(S.data.settings.density === k), onclick: async () => { await set({ density: k }); render(); } }, l))))),
     el("div", { class: "section card" }, el("h2", {}, "Buttons"),
@@ -741,16 +742,16 @@ async function pageSettings(v) {
         el("button", { class: "btn sm", onclick: () => pickBtnArt(k) }, icon("plus"), (S.data.btn_art || {})[k] ? "Change picture" : "Import picture"),
         (S.data.btn_art || {})[k] ? el("button", { class: "btn sm ghost", onclick: async () => { try { S.data.btn_art = (await api("/api/button-art/" + k, { method: "DELETE" })).btn_art; applyTheme(); render(); } catch (e) { fail(e); } } }, "Remove") : null)))),
     el("div", { class: "section card" }, el("h2", {}, "Effects"), toggleRow("Starfield background", "Slowly drifting stars behind the interface.", s.starfield, (c) => set({ starfield: c })), toggleRow("Glow", "Violet glow on buttons and the background.", s.glow, (c) => set({ glow: c })), toggleRow("Animations", "Turn off to save battery on laptops.", s.animations, (c) => set({ animations: c }))),
-    el("div", { class: "section card" }, el("h2", {}, "Game"), el("div", { style: { height: "10px" } }),
+    S.data.app === "roblox" ? null : el("div", { class: "section card" }, el("h2", {}, "Game"), el("div", { style: { height: "10px" } }),
       toggleRow("Download Java automatically", "Nova fetches the right Java version when none is installed.", s.auto_download_java, (c) => set({ auto_download_java: c })),
       toggleRow("Open console when the game starts", null, s.show_console_on_launch, (c) => set({ show_console_on_launch: c })),
       el("div", { style: { height: "14px" } }), el("div", { class: "fields" }, field("Java for every instance", javaIn, "Leave empty to let Nova choose. Instances can override this."), field("Java arguments for every instance", gj))),
-    el("div", { class: "section card" }, el("h2", {}, "CurseForge"), el("p", { class: "muted small", style: { margin: "6px 0 12px" } }, S.data.curseforge_key_set ? "Connected. CurseForge mods show up in Discover next to Modrinth." : "Not connected. Modrinth works without a key."),
+    S.data.app === "roblox" ? null : el("div", { class: "section card" }, el("h2", {}, "CurseForge"), el("p", { class: "muted small", style: { margin: "6px 0 12px" } }, S.data.curseforge_key_set ? "Connected. CurseForge mods show up in Discover next to Modrinth." : "Not connected. Modrinth works without a key."),
       cfKeyRow()),
     el("div", { class: "section card" }, el("h2", {}, "Discord"), el("div", { style: { height: "10px" } }),
-      toggleRow("Rich Presence", "Shows \u201cPlaying Nova Launcher\u201d on your Discord profile while Nova is open. Needs the Discord desktop app running.", s.discord_presence, (c) => set({ discord_presence: c })),
-      toggleRow("Show instance and version", "Turn off to only show \u201cPlaying Minecraft\u201d, with no instance name or version.", s.discord_show_details, (c) => set({ discord_show_details: c }))),
-    el("div", { class: "section card" }, el("h2", {}, "About"), el("p", { class: "muted", style: { margin: "6px 0 12px" } }, `Nova Launcher ${S.data.version}. Your data lives in ${S.data.data_dir}`), el("div", { class: "row" }, el("button", { class: "btn", onclick: () => api("/api/quit", { method: "POST" }).then(() => { document.body.textContent = "Nova has closed. You can close this window."; }) }, "Quit Nova"))));
+      toggleRow("Rich Presence", S.data.app === "roblox" ? "Shows \u201cPlaying Roblox\u201d on your Discord profile while Roblox is running. Needs the Discord desktop app running." : "Shows \u201cPlaying Nova Launcher\u201d on your Discord profile while Nova is open. Needs the Discord desktop app running.", s.discord_presence, (c) => set({ discord_presence: c })),
+      S.data.app === "roblox" ? null : toggleRow("Show instance and version", "Turn off to only show \u201cPlaying Minecraft\u201d, with no instance name or version.", s.discord_show_details, (c) => set({ discord_show_details: c }))),
+    el("div", { class: "section card" }, el("h2", {}, "About"), el("p", { class: "muted", style: { margin: "6px 0 12px" } }, `${S.data.app === "roblox" ? "Nova Roblox" : "Nova Launcher"} ${S.data.version}. Your data lives in ${S.data.data_dir}`), el("div", { class: "row" }, el("button", { class: "btn", onclick: () => api("/api/quit", { method: "POST" }).then(() => { document.body.textContent = "Nova has closed. You can close this window."; }) }, "Quit Nova"))));
 }
 
 // ------------------------------------------------------------------ starfield
@@ -778,6 +779,6 @@ const stars = { enabled: true, pts: [], raf: 0 };
 
 // ------------------------------------------------------------------ boot
 (async function boot() {
-  try { await loadState(); await render(); poll(); requestAnimationFrame(() => requestAnimationFrame(() => { api("/api/ui-ok", { method: "POST", body: {} }).catch(() => {}); })); }
+  try { await loadState(); if (S.data.app === "roblox") rbxInit(); renderRail(); await render(); poll(); requestAnimationFrame(() => requestAnimationFrame(() => { api("/api/ui-ok", { method: "POST", body: {} }).catch(() => {}); })); }
   catch (e) { document.body.replaceChildren(el("div", { class: "empty", style: { padding: "80px 20px" } }, el("h2", {}, "Nova can't start"), el("p", {}, e.message))); }
 })();

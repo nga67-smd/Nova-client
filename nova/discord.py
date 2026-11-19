@@ -15,7 +15,7 @@ import threading
 import time
 import uuid
 
-from . import config, instances
+from . import IS_ROBLOX, config, instances
 
 OP_HANDSHAKE, OP_FRAME, OP_CLOSE, OP_PING, OP_PONG = 0, 1, 2, 3, 4
 REPO_URL = "https://github.com/nga67-smd/Nova-client"
@@ -39,6 +39,13 @@ def build_activity(playing: dict | None, show_details: bool, launcher_started: f
                 "timestamps": {"start": int(playing.get("started") or time.time())}}
     return {"details": "In the launcher", "state": "Tuning Minecraft with Nova", "assets": assets,
             "buttons": buttons, "timestamps": {"start": int(launcher_started)}}
+
+
+def build_roblox_activity(playing: bool, show_details: bool, started: float) -> dict:
+    assets = {"large_image": "nova", "large_text": "Nova Roblox"}
+    if playing:
+        return {"details": "Playing Roblox", "state": "with Nova Roblox", "assets": assets, "timestamps": {"start": int(started)}}
+    return {"details": "In the launcher", "state": "Tuning Roblox with Nova", "assets": assets, "timestamps": {"start": int(started)}}
 
 
 class _Pipe:
@@ -168,7 +175,11 @@ class Presence:
                     return
                 p.handshake()
                 self.pipe, self.last_sent = p, ""
-            act = build_activity(self.current_playing(), bool(s.get("discord_show_details", True)), self.started)
+            if IS_ROBLOX:
+                run = self.app.roblox_running()
+                act = build_roblox_activity(run, True, getattr(self.app, "rbx_started", self.started) if run else self.started)
+            else:
+                act = build_activity(self.current_playing(), bool(s.get("discord_show_details", True)), self.started)
             key = json.dumps(act, sort_keys=True)
             if key != self.last_sent and time.time() - self.last_time >= MIN_INTERVAL:
                 self.pipe.set_activity(act)
