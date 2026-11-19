@@ -113,13 +113,16 @@ python -m pytest tests
 ## Nova Roblox (a Bloxstrap-style Roblox launcher)
 
 `NovaRoblox.exe` (from the same Releases page) is a second app built from this code, with its own data folder.
-It uses Roblox's official downloads and does not touch Minecraft data.
+Nova does not download or install Roblox. It finds the Roblox already on your PC (Roblox's own install, or a copy
+from Bloxstrap, Voidstrap or Fishstrap) and tunes and opens that one.
 
-- **Install and update Roblox** into Nova's own folder, from Roblox's servers (Windows only).
-- **Play from roblox.com**: press *Connect* once, then *Play* on roblox.com opens Roblox through Nova, which checks for an
-  update first. Sign-in stays in your browser.
-- **FastFlags**: presets (FPS limit, graphics API, grass, post effects, textures) and your own flags. Roblox ignores flags it doesn't allow.
-- **Mods**: import a `.zip` of Roblox files (cursors, skies, sounds, fonts). Switching a mod off puts the originals back.
+- **Play from roblox.com**: press *Connect* once, then *Play* on roblox.com opens Roblox through Nova. When a newer
+  Roblox is out, the game is handed to Roblox's own launcher first so it can update. Sign-in stays in your browser.
+- **Sky**: pick a color or pictures (one for every side, or each side) to replace Roblox's default sky in every game
+  that doesn't build its own. A button opens Roblox's sky textures folder.
+- **FastFlags**: *High optimization* (lowest quality everywhere: no shadows, post effects or grass, lowest textures),
+  presets (FPS limit, graphics API, ...) and your own flags. Roblox ignores flags it doesn't allow.
+- **Mods**: import a `.zip` of Roblox files (cursors, sounds, fonts). Switching a mod off puts the originals back.
 - **Same look as Nova**: themes, backgrounds, button pictures and Discord "Playing Roblox" presence.
 
 Run from source with `python novarbx.py`. Nova Roblox isn't made by or connected to Roblox Corporation.
