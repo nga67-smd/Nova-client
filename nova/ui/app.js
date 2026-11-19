@@ -46,6 +46,7 @@ function icon(name) {
 async function api(path, opts = {}) {
   const init = { method: opts.method || "GET", headers: { "X-Nova-Token": window.NOVA_TOKEN } };
   if (opts.body !== undefined) { init.body = JSON.stringify(opts.body); init.headers["Content-Type"] = "application/json"; }
+  if (opts.slot) init.headers["X-Slot"] = opts.slot;
   if (opts.raw) { init.body = opts.raw; init.headers["X-Filename"] = opts.filename || "file"; init.method = "POST"; }
   let res;
   try { res = await fetch(path, init); } catch { throw new Error("Lost connection to Nova's local service. Restart the launcher."); }
@@ -89,11 +90,26 @@ const FONTS = {
   serif: 'Georgia, "Iowan Old Style", "Times New Roman", serif',
 };
 const SURFACE_VARS = ["--bg", "--panel", "--raised", "--raised2", "--line", "--line2"];
+function pickBtnArt(slot) {
+  const f = el("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif", style: { display: "none" } });
+  f.addEventListener("change", async () => { if (!f.files[0]) return; try { S.data.btn_art = (await api("/api/button-art-upload", { raw: f.files[0], filename: f.files[0].name, slot })).btn_art; applyTheme(); render(); toast("Button picture set.", "ok"); } catch (e) { fail(e); } });
+  f.click();
+}
+// pictures the user imported as the background of a kind of button
+const BTN_SLOTS = [["primary", "Main buttons", "Play, New instance, Save"], ["normal", "Other buttons", "Settings, Import, Cancel"], ["danger", "Delete buttons", "Delete, Remove"]];
+function applyButtonArt() {
+  const r = document.documentElement, art = S.data.btn_art || {};
+  BTN_SLOTS.forEach(([k]) => {
+    if (art[k]) { r.style.setProperty("--btnimg-" + k, `url("/btnart/${k}?t=${window.NOVA_TOKEN}&v=${art[k]}")`); r.dataset["btnimg" + k[0].toUpperCase() + k.slice(1)] = "on"; }
+    else { r.style.removeProperty("--btnimg-" + k); delete r.dataset["btnimg" + k[0].toUpperCase() + k.slice(1)]; }
+  });
+}
 S.bgv = 0;
 function applyTheme() {
   const s = S.data.settings, r = document.documentElement, st = r.style;
   st.setProperty("--accent", s.accent); st.setProperty("--accent2", s.accent2);
   st.setProperty("--radius", s.radius + "px"); st.setProperty("--scale", s.font_scale / 100);
+  applyButtonArt();
   r.dataset.surface = s.surface; r.dataset.density = s.density;
   r.dataset.glow = s.glow ? "on" : "off"; r.dataset.anim = s.animations ? "on" : "off"; r.dataset.stars = s.starfield ? "on" : "off";
   stars.enabled = !!s.starfield;
@@ -717,6 +733,13 @@ async function pageSettings(v) {
       toggleRow("Pause animated backgrounds while Minecraft runs", "Frees up CPU and GPU for the game.", s.bg_pause_in_game, (c) => set({ bg_pause_in_game: c }))),
     el("div", { class: "section card" }, el("h2", {}, "Layout"), el("div", { style: { height: "14px" } }), el("div", { class: "fields" }, field("Corner roundness", range("radius", 0, 28, (x) => x + " px")), field("Text size", range("font_scale", 80, 140, (x) => x + "%"))),
       el("div", { style: { height: "14px" } }), field("Density", el("div", { class: "seg", role: "group" }, [["comfortable", "Comfortable"], ["compact", "Compact"]].map(([k, l]) => el("button", { "aria-pressed": String(S.data.settings.density === k), onclick: async () => { await set({ density: k }); render(); } }, l))))),
+    el("div", { class: "section card" }, el("h2", {}, "Buttons"),
+      el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Import a picture to use as the background of each kind of button. PNG, JPEG, WebP or GIF, up to 4 MB."),
+      el("div", { class: "stack" }, BTN_SLOTS.map(([k, name, ex]) => el("div", { class: "row" },
+        el("div", { class: "btn-slot-prev" }, el("button", { class: "btn" + (k === "primary" ? " primary" : k === "danger" ? " danger" : ""), tabindex: "-1" }, name.split(" ")[0])),
+        el("div", { class: "grow" }, el("b", {}, name), el("div", { class: "muted small" }, ex)),
+        el("button", { class: "btn sm", onclick: () => pickBtnArt(k) }, icon("plus"), (S.data.btn_art || {})[k] ? "Change picture" : "Import picture"),
+        (S.data.btn_art || {})[k] ? el("button", { class: "btn sm ghost", onclick: async () => { try { S.data.btn_art = (await api("/api/button-art/" + k, { method: "DELETE" })).btn_art; applyTheme(); render(); } catch (e) { fail(e); } } }, "Remove") : null)))),
     el("div", { class: "section card" }, el("h2", {}, "Effects"), toggleRow("Starfield background", "Slowly drifting stars behind the interface.", s.starfield, (c) => set({ starfield: c })), toggleRow("Glow", "Violet glow on buttons and the background.", s.glow, (c) => set({ glow: c })), toggleRow("Animations", "Turn off to save battery on laptops.", s.animations, (c) => set({ animations: c }))),
     el("div", { class: "section card" }, el("h2", {}, "Game"), el("div", { style: { height: "10px" } }),
       toggleRow("Download Java automatically", "Nova fetches the right Java version when none is installed.", s.auto_download_java, (c) => set({ auto_download_java: c })),

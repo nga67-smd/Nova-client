@@ -345,3 +345,13 @@ body::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-in
 .cos-tile span { font-size: .78rem; text-align: center; line-height: 1.2; }
 .cos-tile[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .cos-tile:hover { border-color: var(--accent); }
+
+/* imported pictures as button backgrounds (Settings -> Buttons) */
+:root[data-btnimg-primary="on"] .btn.primary, :root[data-btnimg-normal="on"] .btn:not(.primary):not(.danger):not(.ghost), :root[data-btnimg-danger="on"] .btn.danger {
+  color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .85); background-size: cover; background-position: center; background-repeat: no-repeat; border-color: rgba(255, 255, 255, .25); }
+:root[data-btnimg-primary="on"] .btn.primary { background-image: linear-gradient(rgba(0, 0, 0, .25), rgba(0, 0, 0, .25)), var(--btnimg-primary); }
+:root[data-btnimg-normal="on"] .btn:not(.primary):not(.danger):not(.ghost) { background-image: linear-gradient(rgba(0, 0, 0, .3), rgba(0, 0, 0, .3)), var(--btnimg-normal); }
+:root[data-btnimg-danger="on"] .btn.danger { background-image: linear-gradient(rgba(60, 0, 10, .4), rgba(60, 0, 10, .4)), var(--btnimg-danger); }
+:root[data-btnimg-primary="on"] .btn.primary:hover, :root[data-btnimg-normal="on"] .btn:not(.primary):not(.danger):not(.ghost):hover, :root[data-btnimg-danger="on"] .btn.danger:hover { filter: brightness(1.15); }
+.btn-slot-prev { width: 120px; flex: none; }
+.btn-slot-prev .btn { width: 100%; pointer-events: none; }

@@ -21,7 +21,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (__version__, accounts, cosmetics, curseforge, hudmod, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths,
+from . import (__version__, accounts, btnart, cosmetics, curseforge, hudmod, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths,
                settings as settingsmod, versions)
 from . import look
 from .util import NovaError, TaskManager, human_size, dir_size, slugify
@@ -82,7 +82,7 @@ class App:
         return {
             "version": __version__,
             "settings": settingsmod.load(), "look_defaults": look.LOOK_DEFAULTS, "my_themes": look.load_user_themes(),
-            "themes": look.THEMES, "curseforge_key_set": curseforge.has_key(),
+            "themes": look.THEMES, "btn_art": btnart.load(), "curseforge_key_set": curseforge.has_key(),
             "surfaces": settingsmod.SURFACES,
             "instances": [self.instance_view(i) for i in instances.list_all()],
             "accounts": [accounts.public(a) for a in accs["accounts"]], "selected_account": accs.get("selected"),
@@ -153,6 +153,20 @@ def build_routes(app: App):
         if settingsmod.load().get("theme_preset") == tid:
             settingsmod.update({"theme_preset": "custom"})
         return {"my_themes": look.load_user_themes(), "settings": settingsmod.load()}
+
+    @route("POST", "/api/button-art-upload")      # raw picture body; X-Slot says which button
+    def _btn_art_set(ctx):
+        slot = ctx.header("X-Slot") or ""
+        n = int(ctx.header("Content-Length") or 0)
+        if n <= 0 or n > btnart.MAX_BYTES:
+            raise NovaError("Pick a picture under 4 MB.")
+        tmp = paths.data_dir() / "button_art.new"
+        ctx.save_upload(tmp)
+        return {"btn_art": btnart.set_picture(slot, tmp)}
+
+    @route("DELETE", "/api/button-art/<slot>")
+    def _btn_art_del(ctx, slot):
+        return {"btn_art": btnart.remove(slot)}
 
     @route("POST", "/api/look/media-upload")   # "-upload" paths receive the raw file, not JSON
     def _look_media(ctx):
@@ -668,6 +682,12 @@ def make_handler(app: App):
                 if not ctype:
                     return self._send(404, b"Not found", "text/plain")
                 return self._send_file_range(f, ctype)
+            if path.startswith("/btnart/"):
+                t = (query.get("t") or [""])[0]
+                hit = btnart.file_for(path[len("/btnart/"):]) if hmac.compare_digest(t, app.token) else None
+                if not hit:
+                    return self._send(404, b"Not found", "text/plain")
+                return self._send_file_range(hit[0], hit[1])
             rel = path.lstrip("/")
             if rel.startswith("static/"):
                 rel = rel[len("static/"):]
