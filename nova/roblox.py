@@ -446,14 +446,16 @@ def clean_launch_uri(uri: str) -> str:
     return uri
 
 
-def start(uri: str | None = None) -> subprocess.Popen:
-    """Apply flags and mods, then run Roblox (with a launch link from roblox.com, if there is one)."""
+def start(uri: str | None = None, app: bool = False) -> subprocess.Popen:
+    """Apply flags and mods, then run Roblox: with a launch link from roblox.com, or (app=True) the Roblox app itself."""
     vdir = version_dir()
     write_flags(vdir)
     apply_mods(vdir)
     args = [str(vdir / PLAYER_EXE)]
     if uri:
         args.append(clean_launch_uri(uri))
+    elif app:
+        args.append("--app")                       # opens Roblox's own home screen, the same way Bloxstrap's Launch button does
     return subprocess.Popen(args, cwd=str(vdir))
 
 
