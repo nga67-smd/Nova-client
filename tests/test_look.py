@@ -170,3 +170,21 @@ def test_ui_ok_route_clears_guard(tmp_path, monkeypatch):
     look.mark_ui_loading()
     look.mark_ui_ok()
     assert not (tmp_path / "ui_loading").exists()
+
+
+def test_button_look_is_validated_saved_and_reset_by_themes(tmp_path, monkeypatch):
+    monkeypatch.setenv("NOVA_HOME", str(tmp_path))
+    out = look.sanitize({"btn_style": "outline", "btn_shape": "pill", "btn_size": "large", "btn_hover": "glow", "btn_caps": 1,
+                         "btn_border": 9, "btn_color": "#000000", "btn_color2": "#ffff00"})
+    assert out["btn_style"] == "outline" and out["btn_shape"] == "pill" and out["btn_border"] == 3 and out["btn_caps"] is True
+    assert look.luminance(out["btn_color"]) >= 0.04 and out["btn_color2"] == "#ffff00"      # bright is allowed, near-black is lifted
+    assert not {"btn_style", "btn_hover"} & set(look.sanitize({"btn_style": "<x>", "btn_hover": "spin", "btn_color": "red"})) and "btn_color" not in look.sanitize({"btn_color": "red"})
+    s = settings.update({"btn_style": "glass", "btn_color": "#22c55e", "btn_caps": True})
+    assert s["btn_style"] == "glass" and s["btn_color"] == "#22c55e" and s["btn_caps"] is True
+    with pytest.raises(NovaError):
+        settings.update({"btn_style": "neon"})
+    t = look.save_user_theme("Green", settings.load())                                       # saved looks keep their buttons
+    assert look.find_theme(t["id"])["btn_color"] == "#22c55e"
+    settings.update(look.theme_patch(look.THEMES["nova"]))                                   # picking a theme starts from default buttons
+    s = settings.load()
+    assert s["btn_style"] == "gradient" and s["btn_color"] == "" and s["btn_caps"] is False
