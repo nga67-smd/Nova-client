@@ -734,7 +734,7 @@ async function pageSettings(v) {
     el("div", { class: "section card" }, el("h2", {}, "Layout"), el("div", { style: { height: "14px" } }), el("div", { class: "fields" }, field("Corner roundness", range("radius", 0, 28, (x) => x + " px")), field("Text size", range("font_scale", 80, 140, (x) => x + "%"))),
       el("div", { style: { height: "14px" } }), field("Density", el("div", { class: "seg", role: "group" }, [["comfortable", "Comfortable"], ["compact", "Compact"]].map(([k, l]) => el("button", { "aria-pressed": String(S.data.settings.density === k), onclick: async () => { await set({ density: k }); render(); } }, l))))),
     el("div", { class: "section card" }, el("h2", {}, "Buttons"),
-      el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Import a picture to use as the background of each kind of button. PNG, JPEG, WebP or GIF, up to 4 MB."),
+      el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Import a picture to use as the background of each kind of button. PNG, JPEG, WebP or GIF, up to 64 MB. Nova keeps your picture at full quality, so use a large one for a sharp result."),
       el("div", { class: "stack" }, BTN_SLOTS.map(([k, name, ex]) => el("div", { class: "row" },
         el("div", { class: "btn-slot-prev" }, el("button", { class: "btn" + (k === "primary" ? " primary" : k === "danger" ? " danger" : ""), tabindex: "-1" }, name.split(" ")[0])),
         el("div", { class: "grow" }, el("b", {}, name), el("div", { class: "muted small" }, ex)),

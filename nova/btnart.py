@@ -10,7 +10,7 @@ from . import paths
 from .util import NovaError
 
 SLOTS = ("primary", "normal", "danger")
-MAX_BYTES = 4 * 1024 * 1024
+MAX_BYTES = 64 * 1024 * 1024
 TYPES = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "gif": "image/gif"}
 
 
@@ -66,7 +66,7 @@ def set_picture(slot: str, tmp: Path) -> dict:
         raise NovaError("That isn't a PNG, JPEG, WebP or GIF picture.")
     if tmp.stat().st_size > MAX_BYTES:
         tmp.unlink(missing_ok=True)
-        raise NovaError("Pictures must be under 4 MB.")
+        raise NovaError("Pictures must be under 64 MB.")
     remove(slot)
     tmp.replace(_dir() / f"{slot}.{ext}")
     return load()

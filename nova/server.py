@@ -159,7 +159,7 @@ def build_routes(app: App):
         slot = ctx.header("X-Slot") or ""
         n = int(ctx.header("Content-Length") or 0)
         if n <= 0 or n > btnart.MAX_BYTES:
-            raise NovaError("Pick a picture under 4 MB.")
+            raise NovaError("Pick a picture under 64 MB.")
         tmp = paths.data_dir() / "button_art.new"
         ctx.save_upload(tmp)
         return {"btn_art": btnart.set_picture(slot, tmp)}
