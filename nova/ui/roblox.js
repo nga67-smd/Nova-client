@@ -1,58 +1,76 @@
 /* Nova Roblox pages. Loaded before app.js; only used when the server says app === "roblox". */
 "use strict";
 
-window.RBX_PAGES = { roblox: pageRoblox, flags: pageFlags, rbxmods: pageRbxMods };
+window.RBX_PAGES = { roblox: pageRoblox, sky: pageSky, flags: pageFlags, rbxmods: pageRbxMods };
 
 function rbxInit() {
   NAV.length = 0;
-  NAV.push(["roblox", "Roblox", "library"], ["flags", "FastFlags", "settings"], ["rbxmods", "Mods", "discover"], ["settings", "Appearance", "cosmetics"]);
+  NAV.push(["roblox", "Roblox", "library"], ["sky", "Sky", "cosmetics"], ["flags", "FastFlags", "settings"], ["rbxmods", "Mods", "discover"], ["settings", "Appearance", "profiles"]);
   S.page = "roblox";
   document.title = "Nova Roblox";
   const name = document.querySelector(".brand-name"); if (name) name.textContent = "Nova Roblox";
 }
 
+const put = (v, ...kids) => v.append(...kids.filter(Boolean));       // append() would print "null" for an empty slot
 const rbxPost = async (path, body) => { const r = await api(path, { method: "POST", body: body || {} }); return r; };
 async function rbxRefresh() { await loadState(); render(); }
 
 async function pageRoblox(v) {
   const r = S.data.roblox;
-  const runInstall = async (reinstall) => {
-    try {
-      if (reinstall) await rbxPost("/api/roblox/uninstall");
-      const t = await rbxPost("/api/roblox/install");
-      runTask(t.id, (x) => { if (x.status === "done") toast("Roblox is ready.", "ok"); rbxRefresh(); });
-      poll();
-    } catch (e) { fail(e); }
-  };
   const check = async () => {
     try {
       const c = await rbxPost("/api/roblox/check");
-      if (!c.installed) return toast("Roblox isn't installed yet.", "");
-      if (c.update) confirmDialog("Update available", "A newer Roblox is available. Install it now?", "Update", () => runInstall(false), false);
-      else toast("Roblox is up to date.", "ok");
+      if (!c.installed) return toast("Roblox still isn't on this PC.", "");
+      toast(c.update ? "A newer Roblox is out. It updates the next time you open it." : "Your Roblox is up to date.", c.update ? "" : "ok");
     } catch (e) { fail(e); }
   };
+  const rescan = async () => { try { await rbxPost("/api/roblox/rescan"); await rbxRefresh(); } catch (e) { fail(e); } };
   const step = (n, title, body, action) => el("div", { class: "row", style: { "align-items": "flex-start", gap: "14px", padding: "10px 0" } },
     el("div", { class: "avatar", style: { flex: "none" } }, String(n)), el("div", { class: "grow" }, el("b", {}, title), el("div", { class: "muted small" }, body)), action);
-  v.append(el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Roblox"), el("p", {}, "Install and update Roblox, and play it with your own settings and mods."))),
-    !r.supported ? el("div", { class: "section card" }, el("h2", {}, "Windows only"), el("p", { class: "muted", style: { margin: "6px 0 0" } }, "Roblox only runs on Windows, so installing and playing works there. You can still set up FastFlags, mods and the look here.")) : null,
-    el("div", { class: "section card" }, el("div", { class: "row" },
-      el("div", { class: "grow" }, el("h2", {}, r.version ? "Roblox is installed" : "Roblox isn't installed"), el("div", { class: "muted small" }, r.version ? `Version ${r.version}` + (r.running ? " · running now" : "") : "Nova downloads Roblox from Roblox's own servers.")),
-      r.version ? el("button", { class: "btn", onclick: check }, icon("refresh"), "Check for updates") : null,
-      !r.version ? el("button", { class: "btn primary", disabled: !r.supported, onclick: () => runInstall(false) }, icon("download"), "Install Roblox") : null)),
+  put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Roblox"), el("p", {}, "Play the Roblox on this PC with your own settings, sky and mods."))),
+    !r.supported ? el("div", { class: "section card" }, el("h2", {}, "Windows only"), el("p", { class: "muted", style: { margin: "6px 0 0" } }, "Roblox only runs on Windows, so finding and opening it works there. You can still set up FastFlags, skies, mods and the look here.")) : null,
+    r.version ? el("div", { class: "section card" }, el("div", { class: "row" },
+      el("div", { class: "grow" }, el("h2", {}, "Roblox found on this PC"), el("div", { class: "muted small" }, `Version ${r.version} · from ${r.from}` + (r.running ? " · running now" : ""))),
+      el("button", { class: "btn", onclick: check }, icon("refresh"), "Check for updates"),
+      el("button", { class: "btn", onclick: () => rbxPost("/api/roblox/open-folder", { what: "roblox" }).catch(fail) }, icon("folder"), "Open Roblox folder"))) :
+      el("div", { class: "section card" }, el("div", { class: "row" },
+        el("div", { class: "grow" }, el("h2", {}, "Roblox isn't on this PC"), el("div", { class: "muted small" }, "Nova looks for the Roblox app on your device. Install Roblox from roblox.com, then check again.")),
+        el("button", { class: "btn", onclick: rescan }, icon("refresh"), "Check again"),
+        el("button", { class: "btn primary", onclick: () => rbxPost("/api/roblox/open-download").catch(fail) }, icon("download"), "Get Roblox"))),
     el("div", { class: "section card" }, el("h2", {}, "How to play"),
-      step(1, "Let Play open Roblox through Nova", r.registered ? "Done. Nova opens Roblox when you press Play on roblox.com." : "Do this once. Then Play on roblox.com starts Roblox with your FastFlags and mods.",
+      step(1, "Let Play open Roblox through Nova", r.registered ? "Done. Nova opens Roblox when you press Play on roblox.com." : "Do this once. Then Play on roblox.com starts Roblox with your FastFlags, sky and mods.",
         r.registered ? el("span", { class: "muted small" }, "Connected") : el("button", { class: "btn primary sm", disabled: !r.supported, onclick: async () => { try { await rbxPost("/api/roblox/register"); await rbxRefresh(); toast("Play now opens Roblox through Nova.", "ok"); } catch (e) { fail(e); } } }, "Connect")),
-      step(2, "Open Roblox", "Starts the Roblox app with your FastFlags and mods. Sign in there, or in your browser, whichever you use.",
-        el("button", { class: "btn primary sm", disabled: !r.version || r.running, onclick: async () => { try { await rbxPost("/api/roblox/open-app"); toast("Opening Roblox\u2026", "ok"); setTimeout(() => loadState().then(render), 1500); } catch (e) { fail(e); } } }, r.running ? "Running" : "Open Roblox")),
-      step(3, "Or press Play on roblox.com", "Playing from the website also opens Roblox through Nova, after a quick update check.", el("button", { class: "btn ghost sm", onclick: () => rbxPost("/api/roblox/open-site").catch(fail) }, "Open website"))),
+      step(2, "Open Roblox", "Starts the Roblox app with your FastFlags, sky and mods. Sign in there, or in your browser, whichever you use.",
+        el("button", { class: "btn primary sm", disabled: !r.version || r.running, onclick: async () => { try { await rbxPost("/api/roblox/open-app"); toast("Opening Roblox…", "ok"); setTimeout(() => loadState().then(render), 1500); } catch (e) { fail(e); } } }, r.running ? "Running" : "Open Roblox")),
+      step(3, "Or press Play on roblox.com", "Playing from the website also opens Roblox through Nova. If a newer Roblox is out, Roblox's own launcher updates it first.", el("button", { class: "btn ghost sm", onclick: () => rbxPost("/api/roblox/open-site").catch(fail) }, "Open website"))),
     el("div", { class: "section card" }, el("h2", {}, "Maintenance"), el("div", { style: { height: "10px" } }),
       el("div", { class: "row", style: { "flex-wrap": "wrap" } },
         el("button", { class: "btn", onclick: () => rbxPost("/api/roblox/open-folder", {}).catch(fail) }, icon("folder"), "Open Nova Roblox folder"),
-        r.version ? el("button", { class: "btn", onclick: () => confirmDialog("Reinstall Roblox?", r.external ? "Nova downloads its own fresh copy and stops using your existing Roblox. Your settings and mods stay." : "Nova removes its copy of Roblox and downloads it again. Your settings and mods stay.", "Reinstall", () => runInstall(true), false) }, icon("refresh"), "Reinstall") : null,
-        r.version ? el("button", { class: "btn danger", onclick: () => confirmDialog("Uninstall Roblox?", r.external ? "Nova stops using your existing Roblox. Nothing is deleted from it." : "This removes the Roblox files Nova installed. Your settings and mods stay.", "Uninstall", async () => { try { await rbxPost("/api/roblox/uninstall"); await rbxRefresh(); } catch (e) { fail(e); } }) }, icon("trash"), "Uninstall") : null,
-        r.registered ? el("button", { class: "btn ghost", onclick: async () => { try { await rbxPost("/api/roblox/unregister"); await rbxRefresh(); toast("Play no longer opens through Nova.", "ok"); } catch (e) { fail(e); } } }, "Stop using Nova for Play") : null),
-      el("p", { class: "muted small", style: { margin: "12px 0 0" } }, "Nova Roblox isn't made by or connected to Roblox Corporation.")));
+        r.registered ? el("button", { class: "btn ghost", onclick: async () => { try { await rbxPost("/api/roblox/unregister"); await rbxRefresh(); toast("Play is back to Roblox's own launcher.", "ok"); } catch (e) { fail(e); } } }, "Stop using Nova for Play") : null),
+      el("p", { class: "muted small", style: { margin: "12px 0 0" } }, "Nova Roblox doesn't install Roblox and isn't made by or connected to Roblox Corporation.")));
+}
+
+const SKY_SIDES = [["front", "Front"], ["back", "Back"], ["left", "Left"], ["right", "Right"], ["up", "Up"], ["down", "Down"]];
+
+async function pageSky(v) {
+  const r = S.data.roblox, sky = r.sky;
+  const pick = (face) => {
+    const f = el("input", { type: "file", accept: "image/png,image/jpeg", style: { display: "none" } });
+    f.addEventListener("change", async () => { if (!f.files[0]) return; try { await api("/api/roblox/sky-upload", { raw: f.files[0], filename: f.files[0].name, face }); await rbxRefresh(); toast("Sky updated. It applies the next time Roblox starts.", "ok"); } catch (e) { fail(e); } });
+    f.click();
+  };
+  const color = el("input", { type: "color", value: "#6fa8dc", "aria-label": "Sky color" });
+  put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Sky"), el("p", {}, "Change Roblox's default sky. It applies to every game that uses the default sky, the next time Roblox starts.")),
+      el("button", { class: "btn", disabled: !r.sky_folder, onclick: () => rbxPost("/api/roblox/open-folder", { what: "sky" }).catch(fail) }, icon("folder"), "Open sky textures folder")),
+    el("div", { class: "section card" }, el("h2", {}, sky.set ? "Custom sky is on" : "Using Roblox's own sky"),
+      el("p", { class: "muted small", style: { margin: "4px 0 14px" } }, "Games that build their own sky keep it. Use PNG or JPEG pictures. A square picture around 512 pixels works best."),
+      el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "14px" } }, color, el("button", { class: "btn", onclick: async () => { try { await rbxPost("/api/roblox/sky/color", { color: color.value }); await rbxRefresh(); toast("Sky color set.", "ok"); } catch (e) { fail(e); } } }, "Use this color"),
+        el("button", { class: "btn", onclick: () => pick("all") }, icon("plus"), "Use one picture for every side"),
+        sky.set ? el("button", { class: "btn ghost", onclick: async () => { try { await rbxPost("/api/roblox/sky/clear"); await rbxRefresh(); toast("Back to Roblox's own sky.", "ok"); } catch (e) { fail(e); } } }, "Back to the default sky") : null)),
+    el("div", { class: "section card" }, el("h2", {}, "Each side"), el("div", { style: { height: "8px" } }),
+      ...SKY_SIDES.map(([k, name]) => el("div", { class: "toggle-row" }, el("div", { class: "t" }, name, el("small", {}, sky.faces[k] ? "Your picture" : "Roblox's own")),
+        el("button", { class: "btn sm", onclick: () => pick(k) }, icon("plus"), sky.faces[k] ? "Change" : "Import")))),
+    !r.version ? el("p", { class: "muted small", style: { margin: "12px 0 0" } }, "Nova couldn't find Roblox on this PC yet, so the sky applies once it does.") : null);
 }
 
 async function pageFlags(v) {
@@ -71,9 +89,11 @@ async function pageFlags(v) {
     for (const [k, val] of rows) if (k) flags[k] = val;
     try { await rbxPost("/api/roblox/flags", { flags }); await loadState(); toast("Flags saved. They apply the next time Roblox starts.", "ok"); } catch (e) { fail(e); }
   };
-  v.append(el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "FastFlags"), el("p", {}, "Roblox client settings, like the FPS limit and graphics options. They apply the next time Roblox starts."))),
+  put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "FastFlags"), el("p", {}, "Roblox client settings, like the FPS limit and graphics options. They apply the next time Roblox starts."))),
+    el("div", { class: "section card" }, el("h2", {}, "High optimization"),
+      toggleRow(r.presets.max_perf.name, r.presets.max_perf.desc + " Roblox decides which flags it honors, so fog and similar effects may still show in some games.", !!r.preset_on.max_perf, async (on) => { try { await rbxPost("/api/roblox/preset", { id: "max_perf", on }); await rbxRefresh(); toast(on ? "High optimization is on. It applies the next time Roblox starts." : "High optimization is off.", "ok"); } catch (e) { fail(e); } })),
     el("div", { class: "section card" }, el("h2", {}, "Presets"), el("div", { style: { height: "6px" } }),
-      ...Object.entries(r.presets).map(([id, p]) => toggleRow(p.name, p.desc, !!r.preset_on[id], async (on) => { try { await rbxPost("/api/roblox/preset", { id, on }); await rbxRefresh(); } catch (e) { fail(e); } }))),
+      ...Object.entries(r.presets).filter(([id]) => id !== "max_perf").map(([id, p]) => toggleRow(p.name, p.desc, !!r.preset_on[id], async (on) => { try { await rbxPost("/api/roblox/preset", { id, on }); await rbxRefresh(); } catch (e) { fail(e); } }))),
     el("div", { class: "section card" }, el("h2", {}, "Your own flags"),
       el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Add any flag by name. A value can be true, false, a whole number or text. Roblox ignores flags it doesn't allow, so some may do nothing."),
       list, el("div", { style: { height: "12px" } }),
@@ -87,7 +107,7 @@ async function pageRbxMods(v) {
     f.addEventListener("change", async () => { if (!f.files[0]) return; try { toast("Importing…"); await api("/api/roblox/mods-upload", { raw: f.files[0], filename: f.files[0].name }); await rbxRefresh(); toast("Mod imported.", "ok"); } catch (e) { fail(e); } });
     f.click();
   };
-  v.append(el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Mods"), el("p", {}, "Change how Roblox looks and sounds, like cursors, skies, fonts and sounds. Mods are copied over Roblox's files when it starts.")),
+  put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Mods"), el("p", {}, "Change how Roblox looks and sounds, like cursors, skies, fonts and sounds. Mods are copied over Roblox's files when it starts.")),
       el("button", { class: "btn", onclick: () => rbxPost("/api/roblox/open-folder", { what: "mods" }).catch(fail) }, icon("folder"), "Open Mods folder"),
       el("button", { class: "btn primary", onclick: pick }, icon("plus"), "Import mod (.zip)")),
     r.mods.length ? el("div", { class: "section card" }, ...r.mods.map((m) => el("div", { class: "toggle-row" },

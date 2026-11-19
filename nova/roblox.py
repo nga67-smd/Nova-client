@@ -1,43 +1,30 @@
-"""Install, update, tune and launch Roblox (Windows), the way Bloxstrap-style bootstrappers do.
+"""Find the Roblox that is already on this PC, tune it (FastFlags, skies, mods) and start it.
 
-Roblox's own downloads are used as they are: Nova asks Roblox which version is current, downloads its official
-packages, unpacks them into its own folder, then starts RobloxPlayerBeta.exe. Nova adds FastFlags (client settings)
-and user mods on top. Roblox sign-in stays in your browser: you press Play on roblox.com and Roblox hands the
-game to Nova, which opens it with your settings.
+Nova does not download or install Roblox. It looks for Roblox (or a Bloxstrap-style launcher's copy) on the device,
+puts your FastFlags, custom sky and mods into that copy, and starts it. Roblox keeps updating itself: when a newer
+version is out, Nova hands the game to Roblox's own launcher first. Sign-in stays in your browser.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import time
 import zipfile
+import zlib
 from pathlib import Path
 
 from . import paths
-from .util import NovaError, Task, download_file, http_get_json, http_get_text, read_json, safe_extract_zip, write_json
+from .util import NovaError, http_get_json, read_json, safe_extract_zip, write_json
 
 VERSION_URL = "https://clientsettingscdn.roblox.com/v2/client-version/WindowsPlayer"
-CDN = "https://setup.rbxcdn.com"
 PLAYER_EXE = "RobloxPlayerBeta.exe"
 VERSION_RX = re.compile(r"^version-[0-9a-f]{8,32}$")
-
-# which folder each official package unpacks into ("" is the game folder itself)
-PACKAGE_DIRS = {
-    "RobloxApp.zip": "", "shaders.zip": "shaders/", "ssl.zip": "ssl/",
-    "content-avatar.zip": "content/avatar/", "content-configs.zip": "content/configs/", "content-fonts.zip": "content/fonts/",
-    "content-sky.zip": "content/sky/", "content-sounds.zip": "content/sounds/", "content-textures2.zip": "content/textures/",
-    "content-models.zip": "content/models/", "content-textures3.zip": "PlatformContent/pc/textures/",
-    "content-terrain.zip": "PlatformContent/pc/terrain/", "content-platform-fonts.zip": "PlatformContent/pc/fonts/",
-    "extracontent-luapackages.zip": "ExtraContent/LuaPackages/", "extracontent-translations.zip": "ExtraContent/translations/",
-    "extracontent-models.zip": "ExtraContent/models/", "extracontent-textures.zip": "ExtraContent/textures/",
-    "content-studio_svg_textures.zip": "content/studio_svg_textures/",
-}
-APP_SETTINGS = '<?xml version="1.0" encoding="UTF-8"?>\n<Settings>\n\t<ContentFolder>content</ContentFolder>\n\t<BaseUrl>http://www.roblox.com</BaseUrl>\n</Settings>\n'
+LAUNCHERS = (("Roblox", "Roblox"), ("Bloxstrap", "Bloxstrap"), ("Voidstrap", "Voidstrap"), ("Fishstrap", "Fishstrap"))
 
 
 def supported() -> bool:
@@ -46,10 +33,6 @@ def supported() -> bool:
 
 def root() -> Path:
     return paths.sub("Roblox")
-
-
-def versions_root() -> Path:
-    return root() / "Versions"
 
 
 def mods_dir() -> Path:
@@ -66,37 +49,15 @@ def _state() -> dict:
     return read_json(_state_file(), {}) or {}
 
 
-def installed_version() -> str:
-    """The Roblox Nova will run: its own copy, or a Roblox already on this PC that the person chose to use."""
-    st = _state()
-    v = st.get("version", "")
-    if not VERSION_RX.match(v or ""):
-        return ""
-    d = Path(st["dir"]) if st.get("dir") else versions_root() / v
-    return v if (d / PLAYER_EXE).exists() else ""
-
-
-def is_external() -> bool:
-    return bool(installed_version() and _state().get("dir"))
-
-
-def version_dir(v: str | None = None) -> Path:
-    cur = installed_version()
-    if v is None and cur:
-        st = _state()
-        return Path(st["dir"]) if st.get("dir") else versions_root() / cur
-    if not VERSION_RX.match(v or cur or ""):
-        raise NovaError("Roblox isn't installed yet.")
-    return versions_root() / (v or cur)
-
+# ------------------------------------------------------------------ finding Roblox on this PC
 
 def existing_installs() -> list[dict]:
-    """Roblox (or a Bloxstrap-style launcher's copy) already on this PC, newest first."""
+    """Every Roblox found on this PC, newest first."""
     base = os.environ.get("LOCALAPPDATA")
     if not base:
         return []
     found = []
-    for label, sub in (("Roblox", "Roblox"), ("Bloxstrap", "Bloxstrap"), ("Voidstrap", "Voidstrap"), ("Fishstrap", "Fishstrap")):
+    for label, sub in LAUNCHERS:
         vroot = Path(base) / sub / "Versions"
         if not vroot.is_dir():
             continue
@@ -109,17 +70,32 @@ def existing_installs() -> list[dict]:
     return found
 
 
-def adopt_existing(path: str | None = None) -> str:
-    """Use a Roblox that's already installed instead of downloading another copy. Returns its version, or ''."""
+def detect() -> str:
+    """Look for Roblox on the device and remember the newest copy. Returns its version, or '' when there is none."""
     options = existing_installs()
-    pick = next((o for o in options if o["path"] == path), None) if path else (options[0] if options else None)
-    if not pick:
+    if not options:
+        st = _state()
+        if st.get("dir") and not (Path(st["dir"]) / PLAYER_EXE).exists():
+            _state_file().unlink(missing_ok=True)           # the copy we knew about is gone
         return ""
-    write_json(_state_file(), {"version": pick["version"], "dir": pick["path"], "installed": time.time()})
+    pick = options[0]
+    st = _state()
+    if st.get("dir") != pick["path"]:
+        write_json(_state_file(), {**st, "version": pick["version"], "dir": pick["path"], "from": pick["from"], "found": time.time()})
     return pick["version"]
 
 
-# ------------------------------------------------------------------ install / update
+def installed_version() -> str:
+    st = _state()
+    return st["version"] if st.get("dir") and VERSION_RX.match(st.get("version", "")) and (Path(st["dir"]) / PLAYER_EXE).exists() else ""
+
+
+def version_dir() -> Path:
+    st = _state()
+    if not installed_version():
+        raise NovaError("Nova couldn't find Roblox on this PC. Install it from roblox.com first.")
+    return Path(st["dir"])
+
 
 def latest_version() -> str:
     data = http_get_json(VERSION_URL)
@@ -129,93 +105,15 @@ def latest_version() -> str:
     return v
 
 
-def parse_manifest(text: str) -> list[dict]:
-    """rbxPkgManifest.txt: the line 'v0', then four lines per package: name, md5, compressed size, size."""
-    lines = [l.strip() for l in text.splitlines() if l.strip()]
-    if not lines or lines[0] != "v0":
-        raise NovaError("Roblox's file list is in a format Nova doesn't know yet.")
-    out = []
-    body = lines[1:]
-    for i in range(0, len(body) - 3, 4):
-        name, md5, comp, size = body[i:i + 4]
-        if not re.match(r"^[A-Za-z0-9_.-]+$", name) or not re.match(r"^[0-9a-f]{32}$", md5):
-            raise NovaError("Roblox's file list looks damaged.")
-        out.append({"name": name, "md5": md5, "size": int(comp) if comp.isdigit() else 0})
-    return out
-
-
-def _md5(path: Path) -> str:
-    h = hashlib.md5()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def install(task: Task | None = None, version: str | None = None) -> str:
-    """Download and unpack the current Roblox. Returns the installed version."""
-    if not supported():
-        raise NovaError("Roblox only runs on Windows, so Nova can only install it there.")
-    task = task or Task("Install Roblox")
-    task.update("Checking the current Roblox version…", 0)
-    version = version or latest_version()
-    target = versions_root() / version
-    if (target / PLAYER_EXE).exists():
-        _set_installed(version)
-        return version
-    manifest = parse_manifest(http_get_text(f"{CDN}/{version}-rbxPkgManifest.txt"))
-    pkgs = [m for m in manifest if m["name"] in PACKAGE_DIRS]
-    if not any(m["name"] == "RobloxApp.zip" for m in pkgs):
-        raise NovaError("Roblox's file list has no game package. Roblox may have changed its downloads.")
-    tmp = root() / "Downloads" / version
-    tmp.mkdir(parents=True, exist_ok=True)
-    work = versions_root() / (version + ".part")
-    shutil.rmtree(work, ignore_errors=True)
-    work.mkdir(parents=True, exist_ok=True)
-    total = max(1, len(pkgs))
-    for n, m in enumerate(pkgs):
-        task.update(f"Downloading {m['name']} ({n + 1}/{total})…", n / total)
-        dest = tmp / m["name"]
-        for attempt in range(3):
-            download_file(f"{CDN}/{version}-{m['name']}", dest)
-            if _md5(dest) == m["md5"]:
-                break
-            dest.unlink(missing_ok=True)
-        else:
-            raise NovaError(f"{m['name']} didn't download correctly. Check your connection and try again.")
-        task.update(f"Unpacking {m['name']}…", (n + 0.7) / total)
-        sub = PACKAGE_DIRS[m["name"]]
-        out = work / sub if sub else work
-        out.mkdir(parents=True, exist_ok=True)
-        safe_extract_zip(dest, out)
-    (work / "AppSettings.xml").write_text(APP_SETTINGS, encoding="utf-8")
-    shutil.rmtree(target, ignore_errors=True)
-    work.rename(target)
-    shutil.rmtree(tmp, ignore_errors=True)
-    _set_installed(version)
-    for old in versions_root().iterdir():                       # keep only the current version
-        if old.is_dir() and old.name != version:
-            shutil.rmtree(old, ignore_errors=True)
-    task.update("Done", 1)
-    return version
-
-
-def _set_installed(version: str) -> None:
-    write_json(_state_file(), {"version": version, "installed": time.time()})
-
-
-def uninstall() -> None:
-    """Remove Nova's own copy. A Roblox that Nova only borrows from another install is never deleted."""
-    shutil.rmtree(versions_root(), ignore_errors=True)
-    _state_file().unlink(missing_ok=True)
-    (root() / "mods_applied.json").unlink(missing_ok=True)
-
-
 # ------------------------------------------------------------------ FastFlags
 
 FLAG_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{2,120}$")
 
 PRESETS = {
+    "max_perf": {"name": "Maximum performance", "desc": "Lowest quality everywhere: no shadows, post effects or grass, lowest textures and no anti-aliasing. Fewer effects means less lag.",
+                 "flags": {"DFIntDebugFRMQualityLevelOverride": 1, "FIntRenderShadowIntensity": 0, "FFlagDisablePostFx": True,
+                           "FIntFRMMinGrassDistance": 0, "FIntFRMMaxGrassDistance": 0, "DFFlagTextureQualityOverrideEnabled": True,
+                           "DFIntTextureQualityOverride": 0, "FIntDebugForceMSAASamples": 1}},
     "fps_144": {"name": "Unlock FPS to 144", "desc": "Raises Roblox's 60 FPS limit.", "flags": {"DFIntTaskSchedulerTargetFps": 144}},
     "fps_240": {"name": "Unlock FPS to 240", "desc": "For high refresh rate screens.", "flags": {"DFIntTaskSchedulerTargetFps": 240}},
     "fps_off": {"name": "No FPS limit", "desc": "Runs as fast as your PC allows.", "flags": {"DFIntTaskSchedulerTargetFps": 9999}},
@@ -283,8 +181,9 @@ def write_flags(vdir: Path) -> None:
 
 # ------------------------------------------------------------------ mods (files laid over the game folder)
 
-def mod_names() -> list[str]:
-    return sorted(p.name for p in mods_dir().iterdir() if p.is_dir())
+def mod_names(managed: bool = False) -> list[str]:
+    """Folders in Mods. The custom sky Nova builds itself is only included on request."""
+    return sorted(p.name for p in mods_dir().iterdir() if p.is_dir() and (managed or p.name != SKY_MOD))
 
 
 def mods_info() -> list[dict]:
@@ -316,7 +215,7 @@ def import_mod_zip(tmp: Path, filename: str) -> str:
         raise NovaError("Mods are imported as .zip files. The folders inside should match Roblox's (content, ExtraContent, ...).")
     base = re.sub(r"[^A-Za-z0-9 _.-]+", "", Path(filename or "mod").stem).strip(" .") or "mod"
     name, n = base, 2
-    while (mods_dir() / name).exists():
+    while (mods_dir() / name).exists() or name == SKY_MOD:
         name, n = f"{base} {n}", n + 1
     dest = mods_dir() / name
     try:
@@ -339,7 +238,7 @@ def import_mod_zip(tmp: Path, filename: str) -> str:
 def _wanted_mod_files() -> dict[str, Path]:
     off = set((read_json(root() / "mods_off.json", []) or []))
     want: dict[str, Path] = {}
-    for name in mod_names():
+    for name in mod_names(managed=True):
         if name in off:
             continue
         base = mods_dir() / name
@@ -387,6 +286,115 @@ def apply_mods(vdir: Path) -> int:
     return len(want)
 
 
+# ------------------------------------------------------------------ sky
+
+SKY_FACES = {"front": "ft", "back": "bk", "left": "lf", "right": "rt", "up": "up", "down": "dn"}
+SKY_MOD = "Nova Sky"                                  # the folder Nova keeps in Mods for the custom sky
+SKY_FILE = re.compile(r"^(sky\d*_)(bk|dn|ft|lf|rt|up)\.(\w+)$", re.I)
+
+
+def _sky_dir() -> Path:
+    d = root() / "Sky"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def sniff_image(path: Path) -> str:
+    try:
+        with open(path, "rb") as f:
+            h = f.read(8)
+    except OSError:
+        return ""
+    return "png" if h.startswith(b"\x89PNG\r\n\x1a\n") else "jpg" if h.startswith(b"\xff\xd8\xff") else ""
+
+
+def solid_png(color: str, size: int = 512) -> bytes:
+    """A plain one-color picture, made without any image library."""
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", color or ""):
+        raise NovaError("Pick a color.")
+    r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
+    row = b"\x00" + bytes((r, g, b)) * size
+
+    def chunk(t: bytes, d: bytes) -> bytes:
+        return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(row * size, 9)) + chunk(b"IEND", b""))
+
+
+def _face_file(face: str) -> Path | None:
+    for ext in ("png", "jpg"):
+        p = _sky_dir() / f"{face}.{ext}"
+        if p.exists():
+            return p
+    return None
+
+
+def sky_info() -> dict:
+    return {"faces": {f: bool(_face_file(f)) for f in SKY_FACES}, "set": any(_face_file(f) for f in SKY_FACES)}
+
+
+def set_sky_color(color: str) -> dict:
+    data = solid_png(color)
+    clear_sky()
+    for face in SKY_FACES:
+        (_sky_dir() / f"{face}.png").write_bytes(data)
+    return sky_info()
+
+
+def set_sky_image(face: str, tmp: Path) -> dict:
+    """Use a picture for one side of the sky, or ('all') for every side."""
+    if face != "all" and face not in SKY_FACES:
+        tmp.unlink(missing_ok=True)
+        raise NovaError("Unknown side of the sky.")
+    ext = sniff_image(tmp)
+    if not ext:
+        tmp.unlink(missing_ok=True)
+        raise NovaError("Sky pictures must be PNG or JPEG.")
+    if tmp.stat().st_size > 32 * 1024 * 1024:
+        tmp.unlink(missing_ok=True)
+        raise NovaError("Pictures must be under 32 MB.")
+    faces = list(SKY_FACES) if face == "all" else [face]
+    for f in faces:
+        for e in ("png", "jpg"):
+            (_sky_dir() / f"{f}.{e}").unlink(missing_ok=True)
+        shutil.copyfile(tmp, _sky_dir() / f"{f}.{ext}")
+    tmp.unlink(missing_ok=True)
+    return sky_info()
+
+
+def clear_sky() -> dict:
+    for f in SKY_FACES:
+        for e in ("png", "jpg"):
+            (_sky_dir() / f"{f}.{e}").unlink(missing_ok=True)
+    shutil.rmtree(mods_dir() / SKY_MOD, ignore_errors=True)
+    return sky_info()
+
+
+def sky_folder(vdir: Path) -> Path:
+    return vdir / "content" / "sky"
+
+
+def build_sky_mod(vdir: Path) -> None:
+    """Turn the chosen sky pictures into a mod that uses Roblox's own sky file names, so every game's default sky changes."""
+    target = mods_dir() / SKY_MOD
+    shutil.rmtree(target, ignore_errors=True)
+    if not sky_info()["set"]:
+        return
+    names = {}
+    folder = sky_folder(vdir)
+    if folder.is_dir():
+        for f in folder.iterdir():
+            m = SKY_FILE.match(f.name)
+            if m:
+                names[m.group(2).lower()] = f.name
+    out = target / "content" / "sky"
+    out.mkdir(parents=True, exist_ok=True)
+    for face, code in SKY_FACES.items():
+        src = _face_file(face)
+        if src:
+            shutil.copyfile(src, out / names.get(code, f"sky512_{code}.tex"))
+
+
 # ------------------------------------------------------------------ protocol handler and launching
 
 PROTOCOLS = ("roblox-player", "roblox")
@@ -398,24 +406,36 @@ def _handler_command() -> str:
     return f'"{sys.executable}" "{Path(sys.argv[0]).resolve()}" --launch "%1"'
 
 
-def protocol_registered() -> bool:
-    """True when 'Play' on roblox.com currently opens Roblox through this app."""
-    if not supported():
-        return False
-    try:
-        import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\roblox-player\shell\open\command") as k:
-            cmd = winreg.QueryValueEx(k, "")[0]
-    except (OSError, ImportError):
-        return False
+def _is_ours(cmd: str) -> bool:
     return "--launch" in cmd and Path(sys.executable).name.lower() in cmd.lower()
 
 
+def _read_handler(proto: str) -> str:
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, rf"Software\Classes\{proto}\shell\open\command") as k:
+            return winreg.QueryValueEx(k, "")[0]
+    except (OSError, ImportError):
+        return ""
+
+
+def protocol_registered() -> bool:
+    """True when 'Play' on roblox.com currently opens Roblox through this app."""
+    return supported() and _is_ours(_read_handler("roblox-player"))
+
+
 def register_protocol() -> None:
-    """Make 'Play' on roblox.com open Roblox through Nova (for this Windows user only)."""
+    """Make 'Play' on roblox.com open Roblox through Nova (this Windows user only). Roblox's own handler is remembered."""
     if not supported():
         raise NovaError("This only works on Windows.")
     import winreg
+    st = _state()
+    saved = dict(st.get("orig_handlers") or {})
+    for proto in PROTOCOLS:
+        cur = _read_handler(proto)
+        if cur and not _is_ours(cur):
+            saved[proto] = cur                                   # so Roblox can still update itself and be put back
+    write_json(_state_file(), {**st, "orig_handlers": saved})
     for proto in PROTOCOLS:
         base = rf"Software\Classes\{proto}"
         with winreg.CreateKey(winreg.HKEY_CURRENT_USER, base) as k:
@@ -426,16 +446,21 @@ def register_protocol() -> None:
 
 
 def unregister_protocol() -> None:
-    """Remove Nova's handler. Roblox's own installer registers itself again the next time it runs."""
+    """Give 'Play' back to Roblox's own launcher."""
     if not supported():
         return
     import winreg
+    saved = _state().get("orig_handlers") or {}
     for proto in PROTOCOLS:
-        for sub in (r"\shell\open\command", r"\shell\open", r"\shell", ""):
-            try:
-                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, rf"Software\Classes\{proto}{sub}")
-            except OSError:
-                pass
+        if proto in saved:
+            with winreg.CreateKey(winreg.HKEY_CURRENT_USER, rf"Software\Classes\{proto}\shell\open\command") as k:
+                winreg.SetValueEx(k, "", 0, winreg.REG_SZ, saved[proto])
+        else:
+            for sub in (r"\shell\open\command", r"\shell\open", r"\shell", ""):
+                try:
+                    winreg.DeleteKey(winreg.HKEY_CURRENT_USER, rf"Software\Classes\{proto}{sub}")
+                except OSError:
+                    pass
 
 
 def clean_launch_uri(uri: str) -> str:
@@ -446,10 +471,22 @@ def clean_launch_uri(uri: str) -> str:
     return uri
 
 
+def hand_to_roblox(uri: str) -> bool:
+    """Open a launch link with Roblox's own launcher (the handler that was there before Nova), which updates Roblox first."""
+    uri = clean_launch_uri(uri)
+    saved = _state().get("orig_handlers") or {}
+    cmd = saved.get("roblox-player" if uri.lower().startswith("roblox-player") else "roblox") or saved.get("roblox-player") or ""
+    if not cmd or "%1" not in cmd:
+        return False
+    subprocess.Popen(cmd.replace("%1", uri))
+    return True
+
+
 def start(uri: str | None = None, app: bool = False) -> subprocess.Popen:
-    """Apply flags and mods, then run Roblox: with a launch link from roblox.com, or (app=True) the Roblox app itself."""
+    """Apply flags, sky and mods, then run Roblox: with a launch link from roblox.com, or (app=True) the Roblox app itself."""
     vdir = version_dir()
     write_flags(vdir)
+    build_sky_mod(vdir)
     apply_mods(vdir)
     args = [str(vdir / PLAYER_EXE)]
     if uri:
@@ -460,8 +497,10 @@ def start(uri: str | None = None, app: bool = False) -> subprocess.Popen:
 
 
 def status() -> dict:
-    v = installed_version()
+    v = detect()
     flags = load_flags()
-    return {"supported": supported(), "version": v, "external": is_external(), "existing": existing_installs()[:3], "registered": protocol_registered(), "flags": flags,
+    st = _state()
+    return {"supported": supported(), "version": v, "from": st.get("from", "") if v else "", "found": existing_installs()[:3],
+            "registered": protocol_registered(), "flags": flags,
             "presets": {k: {"name": p["name"], "desc": p["desc"]} for k, p in PRESETS.items()}, "preset_on": preset_states(flags),
-            "mods": mods_info(), "path": str(root())}
+            "sky": sky_info(), "mods": mods_info(), "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}

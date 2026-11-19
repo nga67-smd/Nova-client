@@ -12,6 +12,7 @@ from pathlib import Path
 
 from . import APP_NAME, IS_ROBLOX, __version__, discord, look, paths, roblox as rbx
 from .server import App, start_server
+from .util import NovaError
 
 
 def find_app_browser() -> str | None:
@@ -169,16 +170,19 @@ def main(argv: list[str] | None = None) -> int:
     if IS_ROBLOX and args.launch:
         try:
             uri = rbx.clean_launch_uri(args.launch)
-            current = rbx.installed_version() or rbx.adopt_existing()      # a Roblox already on this PC counts
+            current = rbx.detect()                       # look for Roblox on this PC
+            if not current:
+                if rbx.hand_to_roblox(uri):              # Roblox's own launcher can still install and open it
+                    return 0
+                raise NovaError("Nova couldn't find Roblox on this PC. Install it from roblox.com, then try again.")
             try:
-                latest = rbx.latest_version() if current else ""
+                latest = rbx.latest_version()
             except Exception:
-                latest = current                      # offline or Roblox's server is slow: play what is installed
-            if current and current == latest:
-                app.roblox_play(uri)                  # the fast path: no window, Roblox opens straight away
-                launch_only = True
-            else:
-                app.pending_uri = uri                 # install or update first (the window shows progress), then play
+                latest = current                         # offline or Roblox's server is slow: play what is installed
+            if current != latest and rbx.hand_to_roblox(uri):
+                return 0                                 # a newer Roblox is out: its own launcher updates it first
+            app.roblox_play(uri)                         # the fast path: no window, Roblox opens straight away
+            launch_only = True
         except Exception as e:
             print(f"Couldn't start Roblox: {e}")
             _error_box(f"Couldn't start Roblox.\n\n{e}")
@@ -186,8 +190,6 @@ def main(argv: list[str] | None = None) -> int:
     presence = discord.Presence(app)
     presence.start()
     start_server(app, args.port)
-    if IS_ROBLOX and app.pending_uri:
-        app.start_roblox_install()
     url = f"http://127.0.0.1:{app.port}/?t={app.token}"
     print(f"{APP_NAME} {__version__} running at {url}")
     print(f"Data folder: {paths.data_dir()}")

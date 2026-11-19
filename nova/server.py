@@ -66,7 +66,6 @@ class App:
         self.ms_flows: dict[str, threading.Event] = {}
         self.httpd: ThreadingHTTPServer | None = None
         self.rbx_proc = None             # the running Roblox, if Nova started it
-        self.pending_uri: str | None = None   # a roblox.com launch link waiting for an update to finish
         self.ui_ok = threading.Event()   # set once the window has really drawn the page
 
     # ------------------------------------------------------------- state
@@ -81,18 +80,6 @@ class App:
 
     def roblox_running(self) -> bool:
         return bool(self.rbx_proc and self.rbx_proc.poll() is None)
-
-    def start_roblox_install(self):
-        if any(x["kind"] == "roblox-install" and x["status"] == "running" for x in self.tasks.list()):
-            raise NovaError("Roblox is already being installed.")
-
-        def work(task):
-            v = rbx.install(task)
-            uri, self.pending_uri = self.pending_uri, None
-            if uri:
-                self.roblox_play(uri)
-            return {"version": v}
-        return self.tasks.run("Install Roblox", work, kind="roblox-install")
 
     def roblox_play(self, uri: str | None = None, app: bool = False) -> None:
         self.rbx_proc = rbx.start(uri, app) if app else rbx.start(uri)
@@ -179,19 +166,42 @@ def build_routes(app: App):
     # ---- Roblox (the NovaRoblox app)
     @route("POST", "/api/roblox/check")
     def _rbx_check(ctx):
+        cur = rbx.detect()
+        if not cur:
+            return {"installed": "", "latest": "", "update": False}
         latest = rbx.latest_version()
-        cur = rbx.installed_version()
-        return {"latest": latest, "installed": cur, "update": bool(cur and cur != latest)}
+        return {"latest": latest, "installed": cur, "update": cur != latest}
 
-    @route("POST", "/api/roblox/use-existing")
-    def _rbx_adopt(ctx):
-        if not rbx.adopt_existing(ctx.body.get("path")):
-            raise NovaError("Nova couldn't find a Roblox on this PC.")
+    @route("POST", "/api/roblox/rescan")
+    def _rbx_rescan(ctx):
+        rbx.detect()
         return rbx.status()
 
-    @route("POST", "/api/roblox/install")
-    def _rbx_install(ctx):
-        return app.start_roblox_install().to_dict()
+    @route("POST", "/api/roblox/open-download")
+    def _rbx_download(ctx):
+        import webbrowser
+        webbrowser.open("https://www.roblox.com/download")
+        return {"ok": True}
+
+    @route("POST", "/api/roblox/sky-upload")      # raw PNG/JPEG body; X-Face says which side ("all" for every side)
+    def _rbx_sky_set(ctx):
+        n = int(ctx.header("Content-Length") or 0)
+        if n <= 0 or n > 32 * 1024 * 1024:
+            raise NovaError("Pick a picture under 32 MB.")
+        tmp = paths.data_dir() / "sky.new"
+        ctx.save_upload(tmp)
+        rbx.set_sky_image(ctx.header("X-Face") or "all", tmp)
+        return rbx.status()
+
+    @route("POST", "/api/roblox/sky/color")
+    def _rbx_sky_color(ctx):
+        rbx.set_sky_color(str(ctx.body.get("color", "")))
+        return rbx.status()
+
+    @route("POST", "/api/roblox/sky/clear")
+    def _rbx_sky_clear(ctx):
+        rbx.clear_sky()
+        return rbx.status()
 
     @route("POST", "/api/roblox/open-app")
     def _rbx_open_app(ctx):
@@ -216,13 +226,6 @@ def build_routes(app: App):
     @route("POST", "/api/roblox/unregister")
     def _rbx_unregister(ctx):
         rbx.unregister_protocol()
-        return rbx.status()
-
-    @route("POST", "/api/roblox/uninstall")
-    def _rbx_uninstall(ctx):
-        if app.roblox_running():
-            raise NovaError("Close Roblox first.")
-        rbx.uninstall()
         return rbx.status()
 
     @route("POST", "/api/roblox/flags")
@@ -257,7 +260,16 @@ def build_routes(app: App):
 
     @route("POST", "/api/roblox/open-folder")
     def _rbx_folder(ctx):
-        paths.open_in_file_manager(rbx.mods_dir() if ctx.body.get("what") == "mods" else rbx.root())
+        what = ctx.body.get("what")
+        if what == "sky":
+            folder = rbx.sky_folder(rbx.version_dir())
+            if not folder.is_dir():
+                raise NovaError("Roblox's sky folder wasn't found in this version of Roblox.")
+            paths.open_in_file_manager(folder)
+        elif what == "roblox":
+            paths.open_in_file_manager(rbx.version_dir())
+        else:
+            paths.open_in_file_manager(rbx.mods_dir() if what == "mods" else rbx.root())
         return {"ok": True}
 
     @route("POST", "/api/button-art-upload")      # raw picture body; X-Slot says which button
