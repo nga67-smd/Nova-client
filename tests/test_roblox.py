@@ -195,6 +195,7 @@ def test_launch_link_fast_path_opens_roblox_without_a_window(home, monkeypatch):
     started = []
     monkeypatch.setattr(rbx, "start", lambda uri=None: started.append(uri) or _Proc())
     monkeypatch.setattr(appmod, "IS_ROBLOX", True)
+    monkeypatch.setattr(appmod, "hide_child_consoles", lambda: None)      # it patches subprocess for the whole test run
     monkeypatch.setattr(appmod, "open_window", lambda *a, **k: pytest.fail("no window expected"))
     assert appmod.main(["--launch", "roblox-player:1+launchmode:play", "--port", "0"]) == 0
     assert started == ["roblox-player:1+launchmode:play"]
@@ -218,5 +219,9 @@ def test_launch_link_waits_for_install_then_plays(home, monkeypatch):
 
 def test_bad_launch_link_is_refused(home, monkeypatch):
     import nova.app as appmod
+    shown = []
     monkeypatch.setattr(appmod, "IS_ROBLOX", True)
+    monkeypatch.setattr(appmod, "hide_child_consoles", lambda: None)
+    monkeypatch.setattr(appmod, "_error_box", shown.append)          # a real message box would wait for a click
     assert appmod.main(["--launch", "calc.exe --evil"]) == 1
+    assert shown and "Roblox launch link" in shown[0]

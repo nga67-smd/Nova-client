@@ -127,6 +127,17 @@ def shutdown_reason(app, now: float | None = None) -> str | None:
     return None
 
 
+def _error_box(message: str) -> None:
+    """Tell a person who started the app without a console (a roblox.com link) why nothing happened."""
+    if paths.os_name() != "windows":
+        return
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, message, APP_NAME, 0x10)
+    except Exception:
+        pass
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="nova", description=APP_NAME)
     ap.add_argument("--no-window", action="store_true", help="don't open a window; just print the URL")
@@ -170,12 +181,7 @@ def main(argv: list[str] | None = None) -> int:
                 app.pending_uri = uri                 # install or update first (the window shows progress), then play
         except Exception as e:
             print(f"Couldn't start Roblox: {e}")
-            if paths.os_name() == "windows":
-                try:
-                    import ctypes
-                    ctypes.windll.user32.MessageBoxW(0, f"Couldn't start Roblox.\n\n{e}", APP_NAME, 0x10)
-                except Exception:
-                    pass
+            _error_box(f"Couldn't start Roblox.\n\n{e}")
             return 1
     presence = discord.Presence(app)
     presence.start()
