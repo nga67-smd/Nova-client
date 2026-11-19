@@ -30,11 +30,18 @@ jobs:
         run: pyinstaller --onefile --noconsole --name Nova --add-data "nova/ui;nova/ui" nova.py
       - name: Build Nova-debug.exe (shows a console, for troubleshooting)
         run: pyinstaller --onefile --name Nova-debug --add-data "nova/ui;nova/ui" nova.py
+      - name: Build NovaRoblox.exe (the Roblox launcher, no console window)
+        run: pyinstaller --onefile --noconsole --name NovaRoblox --add-data "nova/ui;nova/ui" novarbx.py
+      - name: Build NovaRoblox-debug.exe (shows a console, for troubleshooting)
+        run: pyinstaller --onefile --name NovaRoblox-debug --add-data "nova/ui;nova/ui" novarbx.py
       - name: Smoke test the exes
         run: |
           dist\Nova-debug.exe --version
+          dist\NovaRoblox-debug.exe --version
           $p = Start-Process dist\Nova.exe -ArgumentList "--version" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Nova.exe exited with $($p.ExitCode)" }
+          $p = Start-Process dist\NovaRoblox.exe -ArgumentList "--version" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "NovaRoblox.exe exited with $($p.ExitCode)" }
       - uses: actions/upload-artifact@v4
         with:
           name: Nova-windows

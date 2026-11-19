@@ -108,3 +108,18 @@ Requires an account that owns Minecraft: Java Edition (Game Pass included).
 ```
 python -m pytest tests
 ```
+
+
+## Nova Roblox (a Bloxstrap-style Roblox launcher)
+
+`NovaRoblox.exe` (from the same Releases page) is a second app built from this code, with its own data folder.
+It uses Roblox's official downloads and does not touch Minecraft data.
+
+- **Install and update Roblox** into Nova's own folder, from Roblox's servers (Windows only).
+- **Play from roblox.com**: press *Connect* once, then *Play* on roblox.com opens Roblox through Nova, which checks for an
+  update first. Sign-in stays in your browser.
+- **FastFlags**: presets (FPS limit, graphics API, grass, post effects, textures) and your own flags. Roblox ignores flags it doesn't allow.
+- **Mods**: import a `.zip` of Roblox files (cursors, skies, sounds, fonts). Switching a mod off puts the originals back.
+- **Same look as Nova**: themes, backgrounds, button pictures and Discord "Playing Roblox" presence.
+
+Run from source with `python novarbx.py`. Nova Roblox isn't made by or connected to Roblox Corporation.

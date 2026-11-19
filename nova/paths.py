@@ -40,7 +40,7 @@ def data_dir() -> Path:
         base = Path.home() / "Library" / "Application Support"
     else:
         base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
-    return base / "NovaLauncher"
+    return base / ("NovaRoblox" if os.environ.get("NOVA_APP") == "roblox" else "NovaLauncher")
 
 
 def sub(name: str) -> Path:

@@ -10,7 +10,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from . import __version__, discord, look, paths
+from . import APP_NAME, IS_ROBLOX, __version__, discord, look, paths, roblox as rbx
 from .server import App, start_server
 
 
@@ -115,7 +115,7 @@ def shutdown_reason(app, now: float | None = None) -> str | None:
     """Why Nova should quit now, or None to keep running. Never quits while a download or game is running."""
     now = time.time() if now is None else now
     busy = any(t.get("status") == "running" for t in app.tasks.list()) or \
-        any(app.games.running(g) for g in list(app.games.games))
+        any(app.games.running(g) for g in list(app.games.games)) or app.roblox_running()
     if busy:
         return None
     if app.bye_at and app.bye_at > app.last_ping and now - app.bye_at > BYE_GRACE:
@@ -128,17 +128,18 @@ def shutdown_reason(app, now: float | None = None) -> str | None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="nova", description="Nova Launcher - optimized, customizable Minecraft launcher")
+    ap = argparse.ArgumentParser(prog="nova", description=APP_NAME)
     ap.add_argument("--no-window", action="store_true", help="don't open a window; just print the URL")
     ap.add_argument("--keep-alive", action="store_true", help="keep running after the window closes")
     ap.add_argument("--port", type=int, default=0)
     ap.add_argument("--home", help="data folder (default: your user data directory)")
     ap.add_argument("--reset-look", action="store_true", help="turn off animated / imported backgrounds (if the window comes up blank)")
     ap.add_argument("--software-render", action="store_true", help="draw the window without the GPU (fixes a blank gray window)")
+    ap.add_argument("--launch", metavar="LINK", help="(Roblox) open a roblox.com launch link with Nova's settings")
     ap.add_argument("--version", action="store_true")
     args = ap.parse_args(argv)
     if args.version:
-        print(f"Nova Launcher {__version__}")
+        print(f"{APP_NAME} {__version__}")
         return 0
     if args.home:
         os.environ["NOVA_HOME"] = args.home
@@ -153,15 +154,40 @@ def main(argv: list[str] | None = None) -> int:
         print("The last window didn't finish loading, so the animated background was switched off.")
 
     app = App()
+    launch_only = False
+    if IS_ROBLOX and args.launch:
+        try:
+            uri = rbx.clean_launch_uri(args.launch)
+            current = rbx.installed_version()
+            try:
+                latest = rbx.latest_version() if current else ""
+            except Exception:
+                latest = current                      # offline or Roblox's server is slow: play what is installed
+            if current and current == latest:
+                app.roblox_play(uri)                  # the fast path: no window, Roblox opens straight away
+                launch_only = True
+            else:
+                app.pending_uri = uri                 # install or update first (the window shows progress), then play
+        except Exception as e:
+            print(f"Couldn't start Roblox: {e}")
+            if paths.os_name() == "windows":
+                try:
+                    import ctypes
+                    ctypes.windll.user32.MessageBoxW(0, f"Couldn't start Roblox.\n\n{e}", APP_NAME, 0x10)
+                except Exception:
+                    pass
+            return 1
     presence = discord.Presence(app)
     presence.start()
     start_server(app, args.port)
+    if IS_ROBLOX and app.pending_uri:
+        app.start_roblox_install()
     url = f"http://127.0.0.1:{app.port}/?t={app.token}"
-    print(f"Nova Launcher {__version__} running at {url}")
+    print(f"{APP_NAME} {__version__} running at {url}")
     print(f"Data folder: {paths.data_dir()}")
     if args.software_render:
         _software_marker().write_text("1")
-    proc = open_window(url) if not args.no_window else None
+    proc = open_window(url) if not (args.no_window or launch_only) else None
     opened_at, retried = time.time(), False
     keep = args.keep_alive or args.no_window
     try:
@@ -179,7 +205,9 @@ def main(argv: list[str] | None = None) -> int:
                     pass
                 proc = open_window(url, software=True)
                 app.last_ping = time.time()
-            if keep:
+            if launch_only and not app.roblox_running():
+                break                                   # Roblox was closed; nothing left to do
+            if keep or launch_only:
                 continue
             reason = shutdown_reason(app)
             if reason:
