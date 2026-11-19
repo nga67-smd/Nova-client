@@ -259,3 +259,15 @@ def test_launch_link_uses_an_existing_roblox(home, monkeypatch, tmp_path):
     monkeypatch.setattr(appmod, "open_window", lambda *a, **k: pytest.fail("no window expected"))
     assert appmod.main(["--launch", "roblox://experiences/start?placeId=2"]) == 0
     assert started == ["roblox://experiences/start?placeId=2"] and rbx.is_external()
+
+
+def test_open_roblox_app_starts_the_player_itself(home, monkeypatch):
+    _fake_roblox(monkeypatch)
+    rbx.install()
+    calls = []
+    monkeypatch.setattr(rbx.subprocess, "Popen", lambda args, cwd=None: calls.append(args) or _Proc())
+    rbx.start(None, app=True)
+    rbx.start("roblox://experiences/start?placeId=3")
+    rbx.start()
+    exe = str(rbx.version_dir() / "RobloxPlayerBeta.exe")
+    assert calls == [[exe, "--app"], [exe, "roblox://experiences/start?placeId=3"], [exe]]

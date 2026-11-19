@@ -94,8 +94,8 @@ class App:
             return {"version": v}
         return self.tasks.run("Install Roblox", work, kind="roblox-install")
 
-    def roblox_play(self, uri: str | None = None) -> None:
-        self.rbx_proc = rbx.start(uri)
+    def roblox_play(self, uri: str | None = None, app: bool = False) -> None:
+        self.rbx_proc = rbx.start(uri, app) if app else rbx.start(uri)
         self.rbx_started = time.time()
 
     def state(self) -> dict:
@@ -192,6 +192,15 @@ def build_routes(app: App):
     @route("POST", "/api/roblox/install")
     def _rbx_install(ctx):
         return app.start_roblox_install().to_dict()
+
+    @route("POST", "/api/roblox/open-app")
+    def _rbx_open_app(ctx):
+        if app.roblox_running():
+            raise NovaError("Roblox is already running.")
+        if not rbx.installed_version():
+            raise NovaError("Install Roblox first.")
+        app.roblox_play(None, app=True)
+        return {"ok": True}
 
     @route("POST", "/api/roblox/open-site")
     def _rbx_site(ctx):
