@@ -287,10 +287,15 @@ def apply_mods(vdir: Path) -> int:
 
 
 # ------------------------------------------------------------------ sky
+#
+# Roblox's default sky is six 512x512 textures named sky512_<side>.tex. A .tex file is a DDS image (BC1/DXT1) with a new
+# name, so Nova turns your pictures into exactly that and lays them over Roblox's own files (like any other mod).
 
 SKY_FACES = {"front": "ft", "back": "bk", "left": "lf", "right": "rt", "up": "up", "down": "dn"}
 SKY_MOD = "Nova Sky"                                  # the folder Nova keeps in Mods for the custom sky
-SKY_FILE = re.compile(r"^(sky\d*_)(bk|dn|ft|lf|rt|up)\.(\w+)$", re.I)
+SKY_SIZE = 512
+SKY_FILE = re.compile(r"^sky\d*_(bk|dn|ft|lf|rt|up)\.tex$", re.I)
+SKY_DEFAULT_DIRS = ("PlatformContent/pc/textures/sky", "content/textures/sky")
 
 
 def _sky_dir() -> Path:
@@ -299,100 +304,215 @@ def _sky_dir() -> Path:
     return d
 
 
-def sniff_image(path: Path) -> str:
-    try:
-        with open(path, "rb") as f:
-            h = f.read(8)
-    except OSError:
-        return ""
-    return "png" if h.startswith(b"\x89PNG\r\n\x1a\n") else "jpg" if h.startswith(b"\xff\xd8\xff") else ""
+def decode_png(data: bytes) -> tuple[int, int, bytes]:
+    """Read an 8-bit PNG (what a browser canvas produces) into width, height and RGB bytes."""
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise NovaError("Sky pictures must be PNG.")
+    pos, idat, plte, hdr = 8, [], b"", None
+    while pos + 8 <= len(data):
+        n, kind = struct.unpack(">I4s", data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + n]
+        pos += 12 + n
+        if kind == b"IHDR":
+            hdr = struct.unpack(">IIBBBBB", body)
+        elif kind == b"PLTE":
+            plte = body
+        elif kind == b"IDAT":
+            idat.append(body)
+        elif kind == b"IEND":
+            break
+    if not hdr or not idat:
+        raise NovaError("That picture is damaged.")
+    w, h, depth, ctype, _, _, interlace = hdr
+    chans = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(ctype)
+    if depth != 8 or interlace or not chans or w * h > 4096 * 4096:
+        raise NovaError("Nova can't read that kind of PNG. Use the Import button so Nova converts it first.")
+    raw = zlib.decompress(b"".join(idat))
+    stride = w * chans
+    if len(raw) < (stride + 1) * h:
+        raise NovaError("That picture is damaged.")
+    rows, prev = [], bytearray(stride)
+    for y in range(h):
+        f = raw[y * (stride + 1)]
+        cur = bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+        if f == 1:
+            for i in range(chans, stride):
+                cur[i] = (cur[i] + cur[i - chans]) & 255
+        elif f == 2:
+            for i in range(stride):
+                cur[i] = (cur[i] + prev[i]) & 255
+        elif f == 3:
+            for i in range(stride):
+                cur[i] = (cur[i] + (((cur[i - chans] if i >= chans else 0) + prev[i]) >> 1)) & 255
+        elif f == 4:
+            for i in range(stride):
+                a = cur[i - chans] if i >= chans else 0
+                b = prev[i]
+                c = prev[i - chans] if i >= chans else 0
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                cur[i] = (cur[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        elif f != 0:
+            raise NovaError("That picture is damaged.")
+        rows.append(cur)
+        prev = cur
+    out = bytearray()
+    for r in rows:
+        if ctype == 2:
+            out += r
+        elif ctype == 6:
+            for i in range(0, stride, 4):
+                out += r[i:i + 3]
+        elif ctype == 0:
+            for v in r:
+                out += bytes((v, v, v))
+        elif ctype == 4:
+            for i in range(0, stride, 2):
+                out += bytes((r[i],)) * 3
+        else:
+            for v in r:
+                out += plte[v * 3:v * 3 + 3] or b"\0\0\0"
+    return w, h, bytes(out)
 
 
-def solid_png(color: str, size: int = 512) -> bytes:
-    """A plain one-color picture, made without any image library."""
-    if not re.fullmatch(r"#[0-9a-fA-F]{6}", color or ""):
-        raise NovaError("Pick a color.")
-    r, g, b = (int(color[i:i + 2], 16) for i in (1, 3, 5))
-    row = b"\x00" + bytes((r, g, b)) * size
+def encode_dxt1(w: int, h: int, rgb: bytes) -> bytes:
+    """A DDS file with the picture compressed as BC1/DXT1 (the format of Roblox's sky textures)."""
+    def to565(r, g, b):
+        return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3)
 
-    def chunk(t: bytes, d: bytes) -> bytes:
-        return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
-    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
-            + chunk(b"IDAT", zlib.compress(row * size, 9)) + chunk(b"IEND", b""))
+    def from565(c):
+        r, g, b = (c >> 11) & 31, (c >> 5) & 63, c & 31
+        return (r << 3 | r >> 2, g << 2 | g >> 4, b << 3 | b >> 2)
+    blocks, cache = bytearray(), {}
+    for by in range(0, h, 4):
+        for bx in range(0, w, 4):
+            px = bytearray()
+            for y in range(4):
+                o = ((by + y) * w + bx) * 3
+                px += rgb[o:o + 12]
+            key = bytes(px)
+            hit = cache.get(key)
+            if hit is None:
+                rs, gs, bs = key[0::3], key[1::3], key[2::3]
+                lo, hi = (min(rs), min(gs), min(bs)), (max(rs), max(gs), max(bs))
+                c0, c1 = to565(*hi), to565(*lo)
+                if c0 == c1:
+                    hit = struct.pack("<HHI", c0, c1, 0)
+                else:
+                    if c0 < c1:
+                        c0, c1 = c1, c0
+                    p0, p1 = from565(c0), from565(c1)
+                    d = (p0[0] - p1[0], p0[1] - p1[1], p0[2] - p1[2])
+                    den = d[0] * d[0] + d[1] * d[1] + d[2] * d[2] or 1
+                    idx = 0
+                    for i in range(16):
+                        u = 1 - ((key[i * 3] - p1[0]) * d[0] + (key[i * 3 + 1] - p1[1]) * d[1] + (key[i * 3 + 2] - p1[2]) * d[2]) / den
+                        code = 0 if u < 1 / 6 else 2 if u < 0.5 else 3 if u < 5 / 6 else 1
+                        idx |= code << (2 * i)
+                    hit = struct.pack("<HHI", c0, c1, idx)
+                cache[key] = hit
+            blocks += hit
+    header = b"DDS " + struct.pack("<7I", 124, 0x81007, h, w, len(blocks), 0, 0) + bytes(44) \
+        + struct.pack("<II4s5I", 32, 4, b"DXT1", 0, 0, 0, 0, 0) + struct.pack("<5I", 0x1000, 0, 0, 0, 0)
+    return header + bytes(blocks)
 
 
 def _face_file(face: str) -> Path | None:
-    for ext in ("png", "jpg"):
-        p = _sky_dir() / f"{face}.{ext}"
-        if p.exists():
-            return p
-    return None
+    p = _sky_dir() / f"{face}.dds"
+    return p if p.exists() else None
 
 
 def sky_info() -> dict:
     return {"faces": {f: bool(_face_file(f)) for f in SKY_FACES}, "set": any(_face_file(f) for f in SKY_FACES)}
 
 
+def _check_square(w: int, h: int) -> None:
+    if (w, h) != (SKY_SIZE, SKY_SIZE):
+        raise NovaError(f"Sky pictures must be {SKY_SIZE}x{SKY_SIZE}. Use the Import button, which resizes them for you.")
+
+
 def set_sky_color(color: str) -> dict:
-    data = solid_png(color)
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", color or ""):
+        raise NovaError("Pick a color.")
+    px = bytes(int(color[i:i + 2], 16) for i in (1, 3, 5)) * (SKY_SIZE * SKY_SIZE)
+    data = encode_dxt1(SKY_SIZE, SKY_SIZE, px)
     clear_sky()
     for face in SKY_FACES:
-        (_sky_dir() / f"{face}.png").write_bytes(data)
+        (_sky_dir() / f"{face}.dds").write_bytes(data)
     return sky_info()
 
 
 def set_sky_image(face: str, tmp: Path) -> dict:
-    """Use a picture for one side of the sky, or ('all') for every side."""
-    if face != "all" and face not in SKY_FACES:
+    """Use a 512x512 PNG for one side of the sky, or ('all') for every side."""
+    try:
+        if face != "all" and face not in SKY_FACES:
+            raise NovaError("Unknown side of the sky.")
+        if tmp.stat().st_size > 16 * 1024 * 1024:
+            raise NovaError("That picture is too big.")
+        w, h, rgb = decode_png(tmp.read_bytes())
+        _check_square(w, h)
+        data = encode_dxt1(w, h, rgb)
+    finally:
         tmp.unlink(missing_ok=True)
-        raise NovaError("Unknown side of the sky.")
-    ext = sniff_image(tmp)
-    if not ext:
-        tmp.unlink(missing_ok=True)
-        raise NovaError("Sky pictures must be PNG or JPEG.")
-    if tmp.stat().st_size > 32 * 1024 * 1024:
-        tmp.unlink(missing_ok=True)
-        raise NovaError("Pictures must be under 32 MB.")
-    faces = list(SKY_FACES) if face == "all" else [face]
-    for f in faces:
-        for e in ("png", "jpg"):
-            (_sky_dir() / f"{f}.{e}").unlink(missing_ok=True)
-        shutil.copyfile(tmp, _sky_dir() / f"{f}.{ext}")
-    tmp.unlink(missing_ok=True)
+    for f in (list(SKY_FACES) if face == "all" else [face]):
+        (_sky_dir() / f"{f}.dds").write_bytes(data)
     return sky_info()
 
 
 def clear_sky() -> dict:
     for f in SKY_FACES:
-        for e in ("png", "jpg"):
-            (_sky_dir() / f"{f}.{e}").unlink(missing_ok=True)
+        (_sky_dir() / f"{f}.dds").unlink(missing_ok=True)
     shutil.rmtree(mods_dir() / SKY_MOD, ignore_errors=True)
     return sky_info()
 
 
+def sky_files(vdir: Path) -> dict[str, list[Path]]:
+    """Where Roblox keeps its sky textures, as paths relative to the game folder, per side ('ft', 'bk', ...)."""
+    found: dict[str, list[Path]] = {}
+    for top in ("PlatformContent", "content", "ExtraContent"):
+        base = vdir / top
+        if base.is_dir():
+            for f in base.rglob("*.tex"):
+                m = SKY_FILE.match(f.name)
+                if m:
+                    found.setdefault(m.group(1).lower(), []).append(f.relative_to(vdir))
+    return found
+
+
 def sky_folder(vdir: Path) -> Path:
-    return vdir / "content" / "sky"
+    """The folder that holds Roblox's sky textures (so a person can look at the originals)."""
+    for rels in sky_files(vdir).values():
+        return vdir / rels[0].parent
+    for d in SKY_DEFAULT_DIRS:
+        if (vdir / d).is_dir():
+            return vdir / d
+    return vdir / SKY_DEFAULT_DIRS[0]
 
 
 def build_sky_mod(vdir: Path) -> None:
-    """Turn the chosen sky pictures into a mod that uses Roblox's own sky file names, so every game's default sky changes."""
+    """Turn the chosen sky pictures into a mod that replaces Roblox's own sky files, so every default sky changes."""
     target = mods_dir() / SKY_MOD
     shutil.rmtree(target, ignore_errors=True)
     if not sky_info()["set"]:
         return
-    names = {}
-    folder = sky_folder(vdir)
-    if folder.is_dir():
-        for f in folder.iterdir():
-            m = SKY_FILE.match(f.name)
-            if m:
-                names[m.group(2).lower()] = f.name
-    out = target / "content" / "sky"
-    out.mkdir(parents=True, exist_ok=True)
+    where = sky_files(vdir)
     for face, code in SKY_FACES.items():
         src = _face_file(face)
-        if src:
-            shutil.copyfile(src, out / names.get(code, f"sky512_{code}.tex"))
+        if not src:
+            continue
+        for rel in where.get(code) or [Path(SKY_DEFAULT_DIRS[0]) / f"sky512_{code}.tex"]:
+            (target / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, target / rel)
+
+
+def apply_sky_now() -> bool:
+    """Put the sky into the Roblox on this PC right away (it can't be changed while Roblox is open)."""
+    try:
+        vdir = version_dir()
+        build_sky_mod(vdir)
+        apply_mods(vdir)
+        return True
+    except (NovaError, OSError):
+        return False
 
 
 # ------------------------------------------------------------------ protocol handler and launching

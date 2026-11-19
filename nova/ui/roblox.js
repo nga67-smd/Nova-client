@@ -54,17 +54,28 @@ const SKY_SIDES = [["front", "Front"], ["back", "Back"], ["left", "Left"], ["rig
 
 async function pageSky(v) {
   const r = S.data.roblox, sky = r.sky;
+  // Roblox wants 512x512 pictures. The browser reads any image format and cuts a centered square, so Nova only gets a clean PNG.
+  const toSkyPng = async (file) => {
+    const bmp = await createImageBitmap(file), c = document.createElement("canvas"); c.width = c.height = 512;
+    const side = Math.min(bmp.width, bmp.height), g = c.getContext("2d"); g.imageSmoothingQuality = "high";
+    g.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, 512, 512);
+    return await new Promise((ok, no) => c.toBlob((b) => b ? ok(b) : no(new Error("Couldn't read that picture.")), "image/png"));
+  };
   const pick = (face) => {
-    const f = el("input", { type: "file", accept: "image/png,image/jpeg", style: { display: "none" } });
-    f.addEventListener("change", async () => { if (!f.files[0]) return; try { await api("/api/roblox/sky-upload", { raw: f.files[0], filename: f.files[0].name, face }); await rbxRefresh(); toast("Sky updated. It applies the next time Roblox starts.", "ok"); } catch (e) { fail(e); } });
+    const f = el("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif,image/bmp", style: { display: "none" } });
+    f.addEventListener("change", async () => {
+      if (!f.files[0]) return;
+      try { toast("Converting\u2026"); const png = await toSkyPng(f.files[0]); await api("/api/roblox/sky-upload", { raw: png, filename: "sky.png", face }); await rbxRefresh(); toast("Sky saved to Roblox. Restart Roblox to see it.", "ok"); }
+      catch (e) { fail(e); }
+    });
     f.click();
   };
   const color = el("input", { type: "color", value: "#6fa8dc", "aria-label": "Sky color" });
   put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Sky"), el("p", {}, "Change Roblox's default sky. It applies to every game that uses the default sky, the next time Roblox starts.")),
       el("button", { class: "btn", disabled: !r.sky_folder, onclick: () => rbxPost("/api/roblox/open-folder", { what: "sky" }).catch(fail) }, icon("folder"), "Open sky textures folder")),
     el("div", { class: "section card" }, el("h2", {}, sky.set ? "Custom sky is on" : "Using Roblox's own sky"),
-      el("p", { class: "muted small", style: { margin: "4px 0 14px" } }, "Games that build their own sky keep it. Use PNG or JPEG pictures. A square picture around 512 pixels works best."),
-      el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "14px" } }, color, el("button", { class: "btn", onclick: async () => { try { await rbxPost("/api/roblox/sky/color", { color: color.value }); await rbxRefresh(); toast("Sky color set.", "ok"); } catch (e) { fail(e); } } }, "Use this color"),
+      el("p", { class: "muted small", style: { margin: "4px 0 14px" } }, "Games that build their own sky keep it. Any picture works: Nova cuts a centered square and converts it to the format Roblox uses. Restart Roblox to see a change."),
+      el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "14px" } }, color, el("button", { class: "btn", onclick: async () => { try { await rbxPost("/api/roblox/sky/color", { color: color.value }); await rbxRefresh(); toast("Sky saved to Roblox. Restart Roblox to see it.", "ok"); } catch (e) { fail(e); } } }, "Use this color"),
         el("button", { class: "btn", onclick: () => pick("all") }, icon("plus"), "Use one picture for every side"),
         sky.set ? el("button", { class: "btn ghost", onclick: async () => { try { await rbxPost("/api/roblox/sky/clear"); await rbxRefresh(); toast("Back to Roblox's own sky.", "ok"); } catch (e) { fail(e); } } }, "Back to the default sky") : null)),
     el("div", { class: "section card" }, el("h2", {}, "Each side"), el("div", { style: { height: "8px" } }),
