@@ -605,17 +605,64 @@ class _SkyMatch:
 _SKY_NAME = _SkyName
 
 
-def _use_sky_textures(found: dict[str, bytes]) -> dict:
-    if not found:
-        raise NovaError("No sky textures (sky512_ft.tex and so on) were found there.")
-    clear_sky()
+def _lib_dir() -> Path:
+    return root() / "SkyLibrary"
+
+
+def _lib_name(name: str) -> str:
+    name = re.sub(r"[^\w .()+-]", "", name or "", flags=re.U).strip(" .")[:40]
+    if not name:
+        raise NovaError("Give this sky a name.")
+    return name
+
+
+def library_list() -> list[str]:
+    d = _lib_dir()
+    return sorted((x.name for x in d.iterdir() if x.is_dir() and any(x.glob("*.dds"))), key=str.lower) if d.is_dir() else []
+
+
+def _lib_store(name: str, found: dict[str, bytes]) -> None:
+    d = _lib_dir() / _lib_name(name)
+    shutil.rmtree(d, ignore_errors=True)
+    d.mkdir(parents=True)
     for face, code in SKY_FACES.items():
         if code in found:
-            (_sky_dir() / f"{face}.dds").write_bytes(found[code])
+            (d / f"{face}.dds").write_bytes(found[code])
+
+
+def _use_sky_textures(found: dict[str, bytes], name: str = "", apply: bool = True) -> dict:
+    if not found:
+        raise NovaError("No sky textures (sky512_ft.tex and so on) were found there.")
+    if name:
+        _lib_store(name, found)                       # every imported sky is kept in "Your skies"
+    if apply:
+        clear_sky()
+        for face, code in SKY_FACES.items():
+            if code in found:
+                (_sky_dir() / f"{face}.dds").write_bytes(found[code])
     return sky_info()
 
 
-def import_sky_pack(tmp: Path) -> dict:
+def use_library_sky(name: str) -> dict:
+    d = _lib_dir() / _lib_name(name)
+    found = {code: (d / f"{face}.dds").read_bytes() for face, code in SKY_FACES.items() if (d / f"{face}.dds").is_file()}
+    if not found:
+        raise NovaError("That sky isn't in your list any more.")
+    return _use_sky_textures(found)
+
+
+def delete_library_sky(name: str) -> None:
+    shutil.rmtree(_lib_dir() / _lib_name(name), ignore_errors=True)
+
+
+def save_current_sky(name: str) -> None:
+    found = {code: f.read_bytes() for face, code in SKY_FACES.items() if (f := _face_file(face))}
+    if not found:
+        raise NovaError("There's no custom sky to save yet.")
+    _lib_store(name, found)
+
+
+def import_sky_pack(tmp: Path, name: str = "", apply: bool = True) -> dict:
     """Use a downloaded sky pack (.zip with sky512_*.tex or .dds files, like a skybox fix) as the sky."""
     found: dict[str, bytes] = {}
     try:
@@ -636,7 +683,7 @@ def import_sky_pack(tmp: Path) -> dict:
                 found[code] = z.read(info)
     finally:
         tmp.unlink(missing_ok=True)
-    return _use_sky_textures(found)
+    return _use_sky_textures(found, name, apply)
 
 
 def _sky_stage() -> Path:
@@ -654,7 +701,7 @@ def stage_sky_file(name: str, first: bool, save) -> None:
         save(stage / name)
 
 
-def finish_sky_files() -> dict:
+def finish_sky_files(name: str = "", apply: bool = True) -> dict:
     stage, found = _sky_stage(), {}
     try:
         for f in sorted(stage.glob("*")) if stage.is_dir() else []:
@@ -666,7 +713,7 @@ def finish_sky_files() -> dict:
                 found[code] = data
     finally:
         shutil.rmtree(stage, ignore_errors=True)
-    return _use_sky_textures(found)
+    return _use_sky_textures(found, name, apply)
 
 
 def build_sky_mod(vdir: Path) -> None:
@@ -830,7 +877,7 @@ def status() -> dict:
     return {"supported": supported(), "version": v, "from": st.get("from", "") if v else "", "found": existing_installs()[:3],
             "registered": protocol_registered(), "flags": flags,
             "presets": {k: {"name": p["name"], "desc": p["desc"]} for k, p in PRESETS.items()}, "preset_on": preset_states(flags),
-            "sky": sky_info(), "skyfix": {"on": skyfix_on(), "enabled": st.get("skyfix", True)}, "sky_presets": {k: v[0] for k, v in SKY_PRESETS.items()}, "mods": mods_info(), "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}
+            "sky": sky_info(), "sky_library": library_list(), "skyfix": {"on": skyfix_on(), "enabled": st.get("skyfix", True)}, "sky_presets": {k: v[0] for k, v in SKY_PRESETS.items()}, "mods": mods_info(), "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}
 
 
 def _junk_dirs() -> list[Path]:
