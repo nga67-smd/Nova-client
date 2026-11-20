@@ -79,6 +79,9 @@ class App:
         return v
 
     def roblox_running(self) -> bool:
+        if os.name == "nt":                  # ask Windows: the process Nova started can outlive or hand over to the real game
+            started = self.rbx_proc is not None and self.rbx_proc.poll() is None and time.time() - getattr(self, "rbx_started", 0) < 25
+            return started or rbx.player_running()      # (the game window needs a few seconds to show up in the process list)
         return bool(self.rbx_proc and self.rbx_proc.poll() is None)
 
     def roblox_play(self, uri: str | None = None, app: bool = False) -> None:
@@ -872,5 +875,5 @@ def start_server(app: App, port: int = 0) -> ThreadingHTTPServer:
     app.httpd = httpd
     threading.Thread(target=httpd.serve_forever, daemon=True, name="http").start()
     if IS_ROBLOX:
-        threading.Thread(target=rbx.CloseWatcher(lambda: rbx.player_running() or app.roblox_running()).run, daemon=True, name="rbx-close").start()
+        threading.Thread(target=rbx.CloseWatcher(app.roblox_running).run, daemon=True, name="rbx-close").start()
     return httpd

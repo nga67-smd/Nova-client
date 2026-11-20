@@ -891,10 +891,21 @@ def set_skyfix(enabled: bool) -> None:
 
 # ------------------------------------------------------------------ refresh when Roblox closes
 
+_RUN_CACHE = [0.0, False]
+
+
 def player_running() -> bool:
-    """Is any Roblox game window process running on this PC?"""
+    """Is any Roblox game window process running on this PC? (looked up at most every 2 seconds)"""
     if os.name != "nt":
         return False
+    if time.time() - _RUN_CACHE[0] < 2:
+        return _RUN_CACHE[1]
+    _RUN_CACHE[1] = _player_running_now()
+    _RUN_CACHE[0] = time.time()
+    return _RUN_CACHE[1]
+
+
+def _player_running_now() -> bool:
     try:
         out = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {PLAYER_EXE}", "/FO", "CSV", "/NH"], capture_output=True, text=True,
                              timeout=10, creationflags=0x08000000).stdout
