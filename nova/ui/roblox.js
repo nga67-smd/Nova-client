@@ -100,6 +100,8 @@ async function pageSky(v) {
       el("div", { class: "muted small", style: { margin: "16px 0 8px" } }, "Ready-made skies"),
       el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "10px" } }, ...Object.entries(r.sky_presets || {}).map(([k, name]) => el("button", { class: "btn sm", onclick: async () => { try { const res = await rbxPost("/api/roblox/sky/preset", { name: k }); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } } }, name))),
       el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "10px", "margin-top": "14px" } }, el("button", { class: "btn sm", disabled: !r.version, onclick: apply }, icon("refresh"), "Apply again"), el("button", { class: "btn sm", disabled: !r.version, onclick: check }, "Check sky"))),
+    el("div", { class: "section card" }, el("h2", {}, "Skybox fix"),
+      toggleRow("Skybox fix", "Replaces Roblox's cached sky mesh with a corrected one so your sky shows in every game, not only some. It's on automatically while you use a custom sky and removed when you go back to the default. " + (r.skyfix.on ? "It is installed right now." : "It isn't installed right now."), !!r.skyfix.enabled, async (on) => { try { await rbxPost("/api/roblox/skyfix", { on }); await rbxRefresh(); toast(on ? "Skybox fix is on." : "Skybox fix is off.", "ok"); } catch (e) { fail(e); } })),
     el("div", { class: "section card" }, el("h2", {}, "Each side"), el("div", { style: { height: "8px" } }),
       ...SKY_SIDES.map(([k, name]) => el("div", { class: "toggle-row" }, el("div", { class: "t" }, name, el("small", {}, sky.faces[k] ? "Your picture" : "Roblox's own")),
         el("button", { class: "btn sm", onclick: () => pick(k) }, icon("plus"), sky.faces[k] ? "Change" : "Import")))),

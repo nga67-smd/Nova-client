@@ -1,4 +1,5 @@
 """Roblox detection, FastFlags, sky, mods and launch-link safety (no Roblox needed: installs are faked in a temp folder)."""
+import os
 import io
 import json
 import struct
@@ -467,3 +468,23 @@ def test_sky_pack_zip_becomes_the_sky_and_one_folder_opens(home, monkeypatch):
     except rbx.NovaError:
         pass
     assert rbx.sky_pack_folder().is_dir()
+
+
+def test_skybox_fix_follows_the_sky(home, monkeypatch):
+    import stat
+    la = home / "local"
+    d = _install(home)
+    rbx.detect()
+    assert not rbx.skyfix_on()
+    rbx.set_sky_color("#112233")
+    assert rbx.apply_sky_now() and rbx.skyfix_on()
+    f = la / "Roblox" / "rbx-storage" / "a5" / "a564ec8aeef3614e788d02f0090089d8"
+    assert f.read_bytes()[:4] == b"RBXH" and not f.stat().st_mode & stat.S_IWUSR    # read-only so Roblox leaves it
+    rbx.apply_sky_now()                                                          # again over a read-only file
+    assert rbx.skyfix_on()
+    rbx.set_skyfix(False)
+    assert not rbx.skyfix_on() and rbx.status()["skyfix"]["enabled"] is False
+    rbx.set_skyfix(True)
+    assert rbx.skyfix_on()
+    rbx.clear_sky(); rbx.apply_sky_now()
+    assert not rbx.skyfix_on() and not f.exists()
