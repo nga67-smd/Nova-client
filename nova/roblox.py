@@ -887,3 +887,50 @@ def sync_skyfix() -> None:
 def set_skyfix(enabled: bool) -> None:
     write_json(_state_file(), {**_state(), "skyfix": bool(enabled)})
     sync_skyfix()
+
+
+# ------------------------------------------------------------------ refresh when Roblox closes
+
+def player_running() -> bool:
+    """Is any Roblox game window process running on this PC?"""
+    if os.name != "nt":
+        return False
+    try:
+        out = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {PLAYER_EXE}", "/FO", "CSV", "/NH"], capture_output=True, text=True,
+                             timeout=10, creationflags=0x08000000).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return PLAYER_EXE.lower() in out.lower()
+
+
+def refresh_after_close() -> bool:
+    """Put the sky (and the skybox fix, flags and mods) back after Roblox closed, in case it or an update undid them."""
+    try:
+        vdir = version_dir()
+        write_flags(vdir)
+    except (NovaError, OSError):
+        pass
+    return apply_sky_now()
+
+
+class CloseWatcher:
+    """Calls refresh_after_close() each time a running Roblox is closed."""
+
+    def __init__(self, running=player_running, refresh=refresh_after_close):
+        self.running, self.refresh, self.was = running, refresh, False
+
+    def tick(self) -> bool:
+        now = bool(self.running())
+        closed = self.was and not now
+        self.was = now
+        if closed:
+            self.refresh()
+        return closed
+
+    def run(self, every: float = 4.0) -> None:
+        while True:
+            try:
+                self.tick()
+            except Exception:
+                pass
+            time.sleep(every)
