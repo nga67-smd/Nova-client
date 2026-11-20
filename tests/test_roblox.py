@@ -443,3 +443,27 @@ def test_cleanup_clears_logs_and_temp_only(home, monkeypatch):
     assert rbx.cleanup_info()["bytes"] == 1500
     assert rbx.cleanup()["freed"] == 1500
     assert rbx.cleanup_info()["bytes"] == 0 and (la / "Roblox" / "keep.txt").exists()
+
+
+def test_sky_pack_zip_becomes_the_sky_and_one_folder_opens(home, monkeypatch):
+    import io, zipfile
+    d = _install(home)
+    rbx.detect()
+    dds = rbx.encode_dxt1(512, 512, bytes((200, 30, 30)) * 512 * 512)
+    z = home / "pack.zip"
+    with zipfile.ZipFile(z, "w") as f:
+        for code in ("bk", "dn", "ft", "lf", "rt", "up"):
+            f.writestr(f"Skybox Fix/PlatformContent/pc/textures/sky/sky512_{code}.tex", dds)
+        f.writestr("readme.txt", "hi")
+    rbx.import_sky_pack(z)
+    assert not z.exists() and all(rbx.sky_info()["faces"].values()) and rbx.apply_sky_now()
+    assert (d / "content" / "sky" / "sky512_ft.tex").read_bytes() == dds
+    bad = home / "bad.zip"
+    with zipfile.ZipFile(bad, "w") as f:
+        f.writestr("a.txt", "x")
+    try:
+        rbx.import_sky_pack(bad)
+        assert False
+    except rbx.NovaError:
+        pass
+    assert rbx.sky_pack_folder().is_dir()

@@ -120,6 +120,7 @@ from Bloxstrap, Voidstrap or Fishstrap) and tunes and opens that one.
   Roblox is out, the game is handed to Roblox's own launcher first so it can update. Sign-in stays in your browser.
 - **Ready-made skies** (Sunset, Starry night, Pastel, Deep space, Ocean), **Apply again** and **Check sky** buttons. Nova also
   puts your sky in Bloxstrap/Voidstrap/Fishstrap's Modifications folder so they stop undoing it. Close Roblox before changing the sky.
+- **Open sky folder** opens the right folder in one click (Fishstrap/Voidstrap/Bloxstrap: their Modifications sky folder) and **Import sky pack (.zip)** uses a downloaded skybox fix / sky pack (files like `sky512_ft.tex`) as your sky.
 - **Clean Roblox logs & temp files** in Maintenance.
 - **Sky**: pick a color or any picture (one for every side, or each side). Nova cuts a square, converts it to the
   512x512 DXT1 `.tex` files Roblox uses and puts them over its default sky, so every game that doesn't build its own sky
