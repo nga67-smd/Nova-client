@@ -17,6 +17,7 @@ async function rbxRefresh() { await loadState(); render(); }
 
 async function pageRoblox(v) {
   const r = S.data.roblox;
+  if (r.running) setTimeout(() => { if (document.body.contains(v)) rbxRefresh().catch(() => {}); }, 3000);   // notice when Roblox closes
   const check = async () => {
     try {
       const c = await rbxPost("/api/roblox/check");
