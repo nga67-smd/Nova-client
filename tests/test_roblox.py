@@ -531,3 +531,32 @@ def test_sky_file_names_are_understood():
         assert m(name) and m(name).group(2) == side, name
     assert m("sky512_ft.tex").group(1) == "512"
     assert m("readme.txt") is None and m("notes.tex") is None
+
+
+def test_sky_library_keeps_imports_and_switches(home, monkeypatch):
+    import zipfile
+    d = _install(home)
+    rbx.detect()
+    red, blue = (rbx.encode_dxt1(512, 512, bytes(c) * 512 * 512) for c in ((220, 20, 20), (20, 20, 220)))
+    for name, dds in (("Red", red), ("Blue sky", blue)):
+        z = home / f"{name}.zip"
+        with zipfile.ZipFile(z, "w") as f:
+            for code in ("bk", "dn", "ft", "lf", "rt", "up"):
+                f.writestr(f"{name}/sky512_{code}.tex", dds)
+        rbx.import_sky_pack(z, name, apply=False)
+    assert rbx.library_list() == ["Blue sky", "Red"] and rbx.sky_info()["set"] is False       # imported many, none chosen yet
+    rbx.use_library_sky("Red")
+    assert rbx.apply_sky_now() and (d / "content" / "sky" / "sky512_ft.tex").read_bytes() == red
+    rbx.use_library_sky("Blue sky")
+    assert rbx.apply_sky_now() and (d / "content" / "sky" / "sky512_ft.tex").read_bytes() == blue
+    rbx.set_sky_color("#00ff00")
+    rbx.save_current_sky("Green")
+    assert "Green" in rbx.library_list() and rbx.status()["sky_library"] == ["Blue sky", "Green", "Red"]
+    rbx.delete_library_sky("Red")
+    assert "Red" not in rbx.library_list()
+    for bad in ("", "../..", "   "):
+        try:
+            rbx.use_library_sky(bad)
+            assert False
+        except rbx.NovaError:
+            pass

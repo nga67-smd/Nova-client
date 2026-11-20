@@ -210,8 +210,9 @@ def build_routes(app: App):
             raise NovaError("Pick a .zip under 256 MB.")
         tmp = paths.data_dir() / "skypack.zip.new"
         ctx.save_upload(tmp)
-        rbx.import_sky_pack(tmp)
-        ok = rbx.apply_sky_now()
+        apply = ctx.header("X-Apply") != "0"
+        rbx.import_sky_pack(tmp, _unq(ctx.header("X-Name")), apply)
+        ok = rbx.apply_sky_now() if apply else False
         return {**rbx.status(), "applied": ok}
 
     @route("POST", "/api/roblox/skyfix")
@@ -229,9 +230,26 @@ def build_routes(app: App):
 
     @route("POST", "/api/roblox/sky-files-done")
     def _rbx_sky_files_done(ctx):
-        rbx.finish_sky_files()
+        apply = ctx.body.get("apply", True) is not False
+        rbx.finish_sky_files(str(ctx.body.get("name", "")), apply)
+        ok = rbx.apply_sky_now() if apply else False
+        return {**rbx.status(), "applied": ok}
+
+    @route("POST", "/api/roblox/sky-lib/use")
+    def _rbx_lib_use(ctx):
+        rbx.use_library_sky(str(ctx.body.get("name", "")))
         ok = rbx.apply_sky_now()
         return {**rbx.status(), "applied": ok}
+
+    @route("POST", "/api/roblox/sky-lib/save")
+    def _rbx_lib_save(ctx):
+        rbx.save_current_sky(str(ctx.body.get("name", "")))
+        return rbx.status()
+
+    @route("POST", "/api/roblox/sky-lib/delete")
+    def _rbx_lib_delete(ctx):
+        rbx.delete_library_sky(str(ctx.body.get("name", "")))
+        return rbx.status()
 
     @route("POST", "/api/roblox/sky/preset")
     def _rbx_sky_preset(ctx):
@@ -880,6 +898,11 @@ def make_handler(app: App):
 
 
 # ------------------------------------------------------------------ run
+
+def _unq(v: str) -> str:
+    from urllib.parse import unquote
+    return unquote(v or "")
+
 
 def start_server(app: App, port: int = 0) -> ThreadingHTTPServer:
     handler = make_handler(app)

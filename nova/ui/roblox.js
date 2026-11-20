@@ -86,26 +86,32 @@ async function pageSky(v) {
     } catch (e) { fail(e); }
   };
   const sendPack = async (files) => {
-    const zip = files.find((x) => /\.zip$/i.test(x.name));
-    if (zip) return api("/api/roblox/sky-pack-upload", { raw: zip, filename: zip.name });
-    const tex = files.filter((x) => /\.(tex|dds)$/i.test(x.name));
-    if (!tex.length) {
-      const sideOf = (n) => { const w = n.toLowerCase().replace(/\.[a-z0-9]+$/, "").match(/[a-z]+/g) || []; for (const x of w.reverse()) { const k = { bk: "back", back: "back", dn: "down", down: "down", bottom: "down", ft: "front", front: "front", lf: "left", left: "left", rt: "right", right: "right", up: "up", top: "up" }[x]; if (k) return k; } return null; };
-      const pics = files.filter((x) => /\.(png|jpe?g|webp|bmp|gif)$/i.test(x.name) && sideOf(x.name));
-      if (!pics.length) throw new Error("Nova found no sky files in there. It looks for .tex or .dds files (like sky512_ft.tex), or pictures named front, back, left, right, up and down. What it saw: " + (files.slice(0, 8).map((x) => x.name).join(", ") || "nothing") + (files.length > 8 ? ", \u2026" : ""));
-      let res;
-      for (const x of pics) res = await api("/api/roblox/sky-upload", { raw: await toSkyPng(x), filename: "sky.png", face: sideOf(x.name) });
-      return res;
+    const zips = files.filter((x) => /\.zip$/i.test(x.name)), tex = files.filter((x) => /\.(tex|dds)$/i.test(x.name));
+    const groups = new Map();                                      // loose texture files, one sky per folder
+    for (const x of tex) { const parts = (x.webkitRelativePath || "").split("/"), key = parts.length > 1 ? parts[parts.length - 2] : "My sky"; groups.set(key, [...(groups.get(key) || []), x]); }
+    const total = zips.length + groups.size, apply = total === 1 ? "1" : "0";
+    let res;
+    for (const z of zips) res = await api("/api/roblox/sky-pack-upload", { raw: z, filename: z.name, headers: { "X-Name": encodeURIComponent(z.name.replace(/\.zip$/i, "")), "X-Apply": apply } });
+    for (const [name, list] of groups) {
+      for (let i = 0; i < list.length; i++) await api("/api/roblox/sky-file-upload", { raw: list[i], filename: list[i].name, headers: { "X-First": i === 0 ? "1" : "0" } });
+      res = await rbxPost("/api/roblox/sky-files-done", { name, apply: apply === "1" });
     }
-    for (let i = 0; i < tex.length; i++) await api("/api/roblox/sky-file-upload", { raw: tex[i], filename: tex[i].name, headers: { "X-First": i === 0 ? "1" : "0" } });
-    return rbxPost("/api/roblox/sky-files-done");
+    if (total > 1) { toast(`Added ${total} skies to Your skies.`, "ok"); return { applied: null, many: true }; }
+    if (total === 1) return res;
+    const sideOf = (n) => { const w = n.toLowerCase().replace(/\.[a-z0-9]+$/, "").match(/[a-z]+/g) || []; for (const x of w.reverse()) { const k = { bk: "back", back: "back", dn: "down", down: "down", bottom: "down", ft: "front", front: "front", lf: "left", left: "left", rt: "right", right: "right", up: "up", top: "up" }[x]; if (k) return k; } return null; };
+    const pics = files.filter((x) => /\.(png|jpe?g|webp|bmp|gif)$/i.test(x.name) && sideOf(x.name));
+    if (!pics.length) throw new Error("Nova found no sky files in there. It looks for .tex or .dds files (like sky512_ft.tex), or pictures named front, back, left, right, up and down. What it saw: " + (files.slice(0, 8).map((x) => x.name).join(", ") || "nothing") + (files.length > 8 ? ", \u2026" : ""));
+    for (const x of pics) res = await api("/api/roblox/sky-upload", { raw: await toSkyPng(x), filename: "sky.png", face: sideOf(x.name) });
+    return res;
   };
   const pickPack = (folder) => {
     const f = el("input", { type: "file", style: { display: "none" } });
     if (folder) f.setAttribute("webkitdirectory", ""); else { f.accept = ".zip,.tex,.dds,image/*"; f.multiple = true; }
-    f.addEventListener("change", async () => { if (!f.files.length) return; try { toast("Importing\u2026"); const res = await sendPack([...f.files]); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } });
+    f.addEventListener("change", async () => { if (!f.files.length) return; try { toast("Importing\u2026"); const res = await sendPack([...f.files]); await rbxRefresh(); if (!res.many) skyDone(res); } catch (e) { fail(e); } });
     f.click();
   };
+  const saveName = el("input", { type: "text", placeholder: "Name for this sky", maxlength: "40", "aria-label": "Sky name", style: { flex: "1", "min-width": "140px" } });
+  const lib = r.sky_library || [];
   put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Sky"), el("p", {}, "Change Roblox's default sky. It applies to every game that uses the default sky, the next time Roblox starts.")),
       el("button", { class: "btn", disabled: !r.sky_folder, onclick: () => rbxPost("/api/roblox/open-folder", { what: "sky" }).catch(fail) }, icon("folder"), "Open sky folder")),
     el("div", { class: "section card" }, el("h2", {}, sky.set ? "Custom sky is on" : "Using Roblox's own sky"),
@@ -118,6 +124,13 @@ async function pageSky(v) {
       el("div", { class: "muted small", style: { margin: "16px 0 8px" } }, "Ready-made skies"),
       el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "10px" } }, ...Object.entries(r.sky_presets || {}).map(([k, name]) => el("button", { class: "btn sm", onclick: async () => { try { const res = await rbxPost("/api/roblox/sky/preset", { name: k }); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } } }, name))),
       el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "10px", "margin-top": "14px" } }, el("button", { class: "btn sm", disabled: !r.version, onclick: apply }, icon("refresh"), "Apply again"), el("button", { class: "btn sm", disabled: !r.version, onclick: check }, "Check sky"))),
+    el("div", { class: "section card" }, el("h2", {}, "Your skies"),
+      el("p", { class: "muted small", style: { margin: "4px 0 10px" } }, "Every sky pack you import is kept here. Pick one and it's your sky. You can import many at once: choose a folder that holds one folder per sky, or select several .zip files."),
+      lib.length ? el("div", {}, ...lib.map((n) => el("div", { class: "toggle-row" }, el("div", { class: "t" }, n),
+        el("div", { class: "row", style: { gap: "8px" } },
+          el("button", { class: "btn sm primary", onclick: async () => { try { const res = await rbxPost("/api/roblox/sky-lib/use", { name: n }); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } } }, "Use"),
+          el("button", { class: "btn sm ghost", "aria-label": "Remove " + n, onclick: async () => { try { await rbxPost("/api/roblox/sky-lib/delete", { name: n }); await rbxRefresh(); } catch (e) { fail(e); } } }, "Remove"))))) : el("p", { class: "muted small" }, "Nothing here yet. Import a sky pack to start your list."),
+      sky.set ? el("div", { class: "row", style: { gap: "10px", "margin-top": "12px", "flex-wrap": "wrap" } }, saveName, el("button", { class: "btn sm", onclick: async () => { try { await rbxPost("/api/roblox/sky-lib/save", { name: saveName.value }); await rbxRefresh(); toast("Saved to Your skies.", "ok"); } catch (e) { fail(e); } } }, "Save current sky")) : null),
     el("div", { class: "section card" }, el("h2", {}, "Skybox fix"),
       toggleRow("Skybox fix", "Replaces Roblox's cached sky mesh with a corrected one so your sky shows in every game, not only some. It's on automatically while you use a custom sky and removed when you go back to the default. " + (r.skyfix.on ? "It is installed right now." : "It isn't installed right now."), !!r.skyfix.enabled, async (on) => { try { await rbxPost("/api/roblox/skyfix", { on }); await rbxRefresh(); toast(on ? "Skybox fix is on." : "Skybox fix is off.", "ok"); } catch (e) { fail(e); } })),
     el("div", { class: "section card" }, el("h2", {}, "Each side"), el("div", { style: { height: "8px" } }),
