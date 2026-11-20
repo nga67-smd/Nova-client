@@ -85,9 +85,18 @@ async function pageSky(v) {
       confirmDialog("Sky check", lines.join("\n\n"), "OK", () => {}, false);
     } catch (e) { fail(e); }
   };
-  const pickPack = () => {
-    const f = el("input", { type: "file", accept: ".zip,application/zip", style: { display: "none" } });
-    f.addEventListener("change", async () => { if (!f.files[0]) return; try { toast("Importing\u2026"); const res = await api("/api/roblox/sky-pack-upload", { raw: f.files[0], filename: f.files[0].name }); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } });
+  const sendPack = async (files) => {
+    const zip = files.find((x) => /\.zip$/i.test(x.name));
+    if (zip) return api("/api/roblox/sky-pack-upload", { raw: zip, filename: zip.name });
+    const tex = files.filter((x) => /\.(tex|dds)$/i.test(x.name));
+    if (!tex.length) throw new Error("Pick a .zip, or the sky .tex files (like sky512_ft.tex).");
+    for (let i = 0; i < tex.length; i++) await api("/api/roblox/sky-file-upload", { raw: tex[i], filename: tex[i].name, headers: { "X-First": i === 0 ? "1" : "0" } });
+    return rbxPost("/api/roblox/sky-files-done");
+  };
+  const pickPack = (folder) => {
+    const f = el("input", { type: "file", style: { display: "none" } });
+    if (folder) f.setAttribute("webkitdirectory", ""); else { f.accept = ".zip,.tex,.dds"; f.multiple = true; }
+    f.addEventListener("change", async () => { if (!f.files.length) return; try { toast("Importing\u2026"); const res = await sendPack([...f.files]); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } });
     f.click();
   };
   put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Sky"), el("p", {}, "Change Roblox's default sky. It applies to every game that uses the default sky, the next time Roblox starts.")),
@@ -96,7 +105,8 @@ async function pageSky(v) {
       el("p", { class: "muted small", style: { margin: "4px 0 14px" } }, "Games that build their own sky keep it. Any picture works: Nova cuts a centered square and converts it to the format Roblox uses. Restart Roblox to see a change."),
       el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "14px" } }, color, el("button", { class: "btn", onclick: async () => { try { const res = await rbxPost("/api/roblox/sky/color", { color: color.value }); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } } }, "Use this color"),
         el("button", { class: "btn", onclick: () => pick("all") }, icon("plus"), "Use one picture for every side"),
-        el("button", { class: "btn", onclick: pickPack }, icon("plus"), "Import sky pack (.zip)"),
+        el("button", { class: "btn", onclick: () => pickPack(false) }, icon("plus"), "Import sky pack (.zip or files)"),
+        el("button", { class: "btn", onclick: () => pickPack(true) }, icon("folder"), "Import sky folder"),
         sky.set ? el("button", { class: "btn ghost", onclick: async () => { try { await rbxPost("/api/roblox/sky/clear"); await rbxRefresh(); toast("Back to Roblox's own sky.", "ok"); } catch (e) { fail(e); } } }, "Back to the default sky") : null),
       el("div", { class: "muted small", style: { margin: "16px 0 8px" } }, "Ready-made skies"),
       el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "10px" } }, ...Object.entries(r.sky_presets || {}).map(([k, name]) => el("button", { class: "btn sm", onclick: async () => { try { const res = await rbxPost("/api/roblox/sky/preset", { name: k }); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } } }, name))),

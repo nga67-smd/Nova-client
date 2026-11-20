@@ -574,6 +574,19 @@ def sky_pack_folder() -> Path:
     return sky_folder(version_dir())
 
 
+_SKY_NAME = re.compile(r"(?:sky(\d*)_)?(bk|dn|ft|lf|rt|up)\.(tex|dds)", re.I)
+
+
+def _use_sky_textures(found: dict[str, bytes]) -> dict:
+    if not found:
+        raise NovaError("No sky textures (sky512_ft.tex and so on) were found there.")
+    clear_sky()
+    for face, code in SKY_FACES.items():
+        if code in found:
+            (_sky_dir() / f"{face}.dds").write_bytes(found[code])
+    return sky_info()
+
+
 def import_sky_pack(tmp: Path) -> dict:
     """Use a downloaded sky pack (.zip with sky512_*.tex or .dds files, like a skybox fix) as the sky."""
     found: dict[str, bytes] = {}
@@ -586,7 +599,7 @@ def import_sky_pack(tmp: Path) -> dict:
             raise NovaError("That isn't a .zip file.") from None
         with z:
             for info in z.infolist():
-                m = re.fullmatch(r"sky(\d*)_(bk|dn|ft|lf|rt|up)\.(tex|dds)", Path(info.filename).name, re.I)
+                m = _SKY_NAME.fullmatch(Path(info.filename).name)
                 if not m or info.is_dir() or info.file_size > 16 * 1024 * 1024:
                     continue
                 code = m.group(2).lower()
@@ -597,13 +610,37 @@ def import_sky_pack(tmp: Path) -> dict:
                     found[code] = data
     finally:
         tmp.unlink(missing_ok=True)
-    if not found:
-        raise NovaError("No sky textures (sky512_ft.tex and so on) were found in that .zip.")
-    clear_sky()
-    for face, code in SKY_FACES.items():
-        if code in found:
-            (_sky_dir() / f"{face}.dds").write_bytes(found[code])
-    return sky_info()
+    return _use_sky_textures(found)
+
+
+def _sky_stage() -> Path:
+    return paths.data_dir() / "skypack_stage"
+
+
+def stage_sky_file(name: str, first: bool, save) -> None:
+    """One loose sky file (picked from a folder) waits here until the rest have arrived."""
+    stage = _sky_stage()
+    if first:
+        shutil.rmtree(stage, ignore_errors=True)
+    stage.mkdir(parents=True, exist_ok=True)
+    name = Path(name or "").name
+    if _SKY_NAME.fullmatch(name):
+        save(stage / name)
+
+
+def finish_sky_files() -> dict:
+    stage, found = _sky_stage(), {}
+    try:
+        for f in sorted(stage.glob("*")) if stage.is_dir() else []:
+            m = _SKY_NAME.fullmatch(f.name)
+            if not m or f.stat().st_size > 16 * 1024 * 1024:
+                continue
+            code, data = m.group(2).lower(), f.read_bytes()
+            if data[:4] == b"DDS " and (code not in found or m.group(1) == "512"):
+                found[code] = data
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+    return _use_sky_textures(found)
 
 
 def build_sky_mod(vdir: Path) -> None:

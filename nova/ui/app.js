@@ -47,6 +47,8 @@ async function api(path, opts = {}) {
   const init = { method: opts.method || "GET", headers: { "X-Nova-Token": window.NOVA_TOKEN } };
   if (opts.body !== undefined) { init.body = JSON.stringify(opts.body); init.headers["Content-Type"] = "application/json"; }
   if (opts.slot) init.headers["X-Slot"] = opts.slot;
+  if (opts.face) init.headers["X-Face"] = opts.face;
+  if (opts.headers) Object.assign(init.headers, opts.headers);
   if (opts.raw) { init.body = opts.raw; init.headers["X-Filename"] = opts.filename || "file"; init.method = "POST"; }
   let res;
   try { res = await fetch(path, init); } catch { throw new Error("Lost connection to Nova's local service. Restart the launcher."); }

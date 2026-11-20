@@ -219,6 +219,20 @@ def build_routes(app: App):
         rbx.set_skyfix(bool(ctx.body.get("on")))
         return rbx.status()
 
+    @route("POST", "/api/roblox/sky-file-upload")      # raw body: one loose sky file; X-First on the first of a set
+    def _rbx_sky_file(ctx):
+        n = int(ctx.header("Content-Length") or 0)
+        if n <= 0 or n > 16 * 1024 * 1024:
+            raise NovaError("That file is too big for a sky texture.")
+        rbx.stage_sky_file(ctx.header("X-Filename"), ctx.header("X-First") == "1", ctx.save_upload)
+        return {"ok": True}
+
+    @route("POST", "/api/roblox/sky-files-done")
+    def _rbx_sky_files_done(ctx):
+        rbx.finish_sky_files()
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
+
     @route("POST", "/api/roblox/sky/preset")
     def _rbx_sky_preset(ctx):
         rbx.set_sky_preset(str(ctx.body.get("name", "")))
