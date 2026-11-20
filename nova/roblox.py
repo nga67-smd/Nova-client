@@ -184,7 +184,7 @@ def write_flags(vdir: Path) -> None:
 
 def mod_names(managed: bool = False) -> list[str]:
     """Folders in Mods. The custom sky Nova builds itself is only included on request."""
-    return sorted(p.name for p in mods_dir().iterdir() if p.is_dir() and (managed or p.name != SKY_MOD))
+    return sorted(p.name for p in mods_dir().iterdir() if p.is_dir() and (managed or p.name not in (SKY_MOD, CROSS_MOD)))
 
 
 def mods_info() -> list[dict]:
@@ -216,7 +216,7 @@ def import_mod_zip(tmp: Path, filename: str) -> str:
         raise NovaError("Mods are imported as .zip files. The folders inside should match Roblox's (content, ExtraContent, ...).")
     base = re.sub(r"[^A-Za-z0-9 _.-]+", "", Path(filename or "mod").stem).strip(" .") or "mod"
     name, n = base, 2
-    while (mods_dir() / name).exists() or name == SKY_MOD:
+    while (mods_dir() / name).exists() or name in (SKY_MOD, CROSS_MOD):
         name, n = f"{base} {n}", n + 1
     dest = mods_dir() / name
     try:
@@ -327,6 +327,7 @@ def apply_mods(vdir: Path) -> int:
 # name, so Nova turns your pictures into exactly that and lays them over Roblox's own files (like any other mod).
 
 SKY_FACES = {"front": "ft", "back": "bk", "left": "lf", "right": "rt", "up": "up", "down": "dn"}
+CROSS_MOD = "Nova Crosshair"                         # same idea for the custom crosshair
 SKY_MOD = "Nova Sky"                                  # the folder Nova keeps in Mods for the custom sky
 SKY_SIZE = 512
 SKY_FILE = re.compile(r"^sky\d*_(bk|dn|ft|lf|rt|up)\.tex$", re.I)
@@ -724,6 +725,7 @@ def build_sky_mod(vdir: Path) -> None:
         sync_skyfix()
     except NovaError:
         pass                                          # Roblox was using the cache; the sky files below still get written
+    build_crosshair_mod(vdir)
     if not sky_info()["set"]:
         return
     where = sky_files(vdir)
@@ -877,7 +879,7 @@ def status() -> dict:
     return {"supported": supported(), "version": v, "from": st.get("from", "") if v else "", "found": existing_installs()[:3],
             "registered": protocol_registered(), "flags": flags,
             "presets": {k: {"name": p["name"], "desc": p["desc"]} for k, p in PRESETS.items()}, "preset_on": preset_states(flags),
-            "sky": sky_info(), "sky_library": library_list(), "skyfix": {"on": skyfix_on(), "enabled": st.get("skyfix", True)}, "sky_presets": {k: v[0] for k, v in SKY_PRESETS.items()}, "mods": mods_info(), "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}
+            "sky": sky_info(), "crosshair": crosshair_info(), "sky_library": library_list(), "skyfix": {"on": skyfix_on(), "enabled": st.get("skyfix", True)}, "sky_presets": {k: v[0] for k, v in SKY_PRESETS.items()}, "mods": mods_info(), "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}
 
 
 def _junk_dirs() -> list[Path]:
@@ -1055,3 +1057,139 @@ class CloseWatcher:
             except Exception:
                 pass
             time.sleep(every)
+
+
+# ------------------------------------------------------------------ crosshairs
+# Roblox draws its mouse cursors from small PNG files. In first person and shift-lock the game shows ArrowFarCursor /
+# MouseLockedCursor in the middle of the screen, so a picture there is a crosshair. (Which file a given game shows is up to
+# the game; some draw their own crosshair.)
+
+CURSOR_DIR = "content/textures/Cursors/KeyboardMouse"
+CROSS_AIM = ("ArrowFarCursor.png", "MouseLockedCursor.png")
+CROSS_POINTER = ("ArrowCursor.png",)
+CROSS_SHAPES = {"dot": "Dot", "plus": "Plus", "plus_gap": "Plus with a gap", "x": "X", "circle": "Circle", "circle_dot": "Circle and dot", "t": "T shape"}
+CROSS_PX = 64
+
+
+def _cross_dir() -> Path:
+    d = root() / "Crosshair"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def encode_png(w: int, h: int, rgba: bytes) -> bytes:
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+    raw = b"".join(b"\x00" + rgba[y * w * 4:(y + 1) * w * 4] for y in range(h))
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
+
+
+def _inside(shape: str, x: float, y: float, k: float, grow: float) -> bool:
+    """Is the point (x, y), measured from the middle, on this crosshair? k scales it, grow thickens it (for the outline)."""
+    t, ax, ay = 1.1 * k + grow, abs(x), abs(y)
+    r = (ax * ax + ay * ay) ** 0.5
+    if shape == "dot":
+        return r <= 3.2 * k + grow
+    if shape == "plus":
+        return (ax <= t and ay <= 13 * k + grow) or (ay <= t and ax <= 13 * k + grow)
+    if shape == "plus_gap":
+        return (ax <= t and 5 * k - grow <= ay <= 14 * k + grow) or (ay <= t and 5 * k - grow <= ax <= 14 * k + grow)
+    if shape == "x":
+        return abs(ax - ay) <= t * 1.3 and r <= 14 * k + grow
+    if shape == "circle":
+        return abs(r - 12 * k) <= t
+    if shape == "circle_dot":
+        return abs(r - 12 * k) <= t or r <= 2.2 * k + grow
+    if shape == "t":
+        return (ay <= t and ax <= 13 * k + grow) or (ax <= t and 0 <= y <= 13 * k + grow)
+    return False
+
+
+def render_crosshair(shape: str, color: str, size: str = "medium") -> bytes:
+    if shape not in CROSS_SHAPES:
+        raise NovaError("Unknown crosshair.")
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", color or ""):
+        raise NovaError("Pick a color.")
+    if size not in ("small", "medium", "large"):
+        raise NovaError("Pick a size.")
+    k = {"small": 0.7, "medium": 1.0, "large": 1.5}[size]
+    rgb = tuple(int(color[i:i + 2], 16) for i in (1, 3, 5))
+    out = bytearray()
+    sub = [(i + 0.5) / 3 - 0.5 for i in range(3)]
+    for py in range(CROSS_PX):
+        for px in range(CROSS_PX):
+            fill = edge = 0
+            for dy in sub:
+                for dx in sub:
+                    x, y = px + dx - CROSS_PX / 2 + 0.5, py + dy - CROSS_PX / 2 + 0.5
+                    fill += _inside(shape, x, y, k, 0)
+                    edge += _inside(shape, x, y, k, 1.1)
+            f, e = fill / 9, edge / 9
+            a = f + e * (1 - f) if e > f else f
+            if a <= 0:
+                out += bytes(4)
+            else:
+                out += bytes([round(c * f / a) for c in rgb]) + bytes([round(255 * a)])
+    return encode_png(CROSS_PX, CROSS_PX, bytes(out))
+
+
+def _cross_info() -> dict:
+    return read_json(_cross_dir() / "crosshair.json", {}) or {}
+
+
+def _cross_file() -> Path:
+    return _cross_dir() / "crosshair.png"
+
+
+def crosshair_info() -> dict:
+    import base64
+    f, meta = _cross_file(), _cross_info()
+    prev = "data:image/png;base64," + base64.b64encode(f.read_bytes()).decode() if f.is_file() else ""
+    return {"set": f.is_file(), "name": meta.get("name", ""), "pointer": bool(meta.get("pointer")), "preview": prev, "shapes": CROSS_SHAPES}
+
+
+def _save_cross(png: bytes, name: str) -> dict:
+    _cross_file().write_bytes(png)
+    write_json(_cross_dir() / "crosshair.json", {**_cross_info(), "name": name})
+    return crosshair_info()
+
+
+def set_crosshair_preset(shape: str, color: str, size: str) -> dict:
+    return _save_cross(render_crosshair(shape, color, size), CROSS_SHAPES.get(shape, shape))
+
+
+def set_crosshair_image(tmp: Path, name: str) -> dict:
+    try:
+        data = tmp.read_bytes()
+        if tmp.stat().st_size > 2 * 1024 * 1024:
+            raise NovaError("That picture is too big for a crosshair.")
+        try:
+            w, h, _ = decode_png(data)
+        except NovaError:
+            raise NovaError("Use the Import button, which turns your picture into a crosshair.") from None
+        if not (8 <= w <= 256 and 8 <= h <= 256):
+            raise NovaError("A crosshair picture should be between 8 and 256 pixels wide.")
+    finally:
+        tmp.unlink(missing_ok=True)
+    return _save_cross(data, (name or "Your picture")[:40])
+
+
+def set_crosshair_pointer(on: bool) -> None:
+    write_json(_cross_dir() / "crosshair.json", {**_cross_info(), "pointer": bool(on)})
+
+
+def clear_crosshair() -> dict:
+    _cross_file().unlink(missing_ok=True)
+    shutil.rmtree(mods_dir() / CROSS_MOD, ignore_errors=True)
+    return crosshair_info()
+
+
+def build_crosshair_mod(vdir: Path) -> None:
+    target = mods_dir() / CROSS_MOD
+    shutil.rmtree(target, ignore_errors=True)
+    if not _cross_file().is_file():
+        return
+    names = CROSS_AIM + (CROSS_POINTER if _cross_info().get("pointer") else ())
+    for n in names:
+        (target / CURSOR_DIR).mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(_cross_file(), target / CURSOR_DIR / n)
