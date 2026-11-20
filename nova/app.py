@@ -214,6 +214,7 @@ def main(argv: list[str] | None = None) -> int:
                 proc = open_window(url, software=True)
                 app.last_ping = time.time()
             if launch_only and not app.roblox_running():
+                rbx.refresh_after_close()               # put the sky back in case Roblox undid it
                 break                                   # Roblox was closed; nothing left to do
             if keep or launch_only:
                 continue

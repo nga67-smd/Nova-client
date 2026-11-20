@@ -871,4 +871,6 @@ def start_server(app: App, port: int = 0) -> ThreadingHTTPServer:
     app.port = httpd.server_address[1]
     app.httpd = httpd
     threading.Thread(target=httpd.serve_forever, daemon=True, name="http").start()
+    if IS_ROBLOX:
+        threading.Thread(target=rbx.CloseWatcher(lambda: rbx.player_running() or app.roblox_running()).run, daemon=True, name="rbx-close").start()
     return httpd

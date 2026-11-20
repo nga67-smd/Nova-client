@@ -122,6 +122,7 @@ from Bloxstrap, Voidstrap or Fishstrap) and tunes and opens that one.
   puts your sky in Bloxstrap/Voidstrap/Fishstrap's Modifications folder so they stop undoing it. Close Roblox before changing the sky.
 - **Open sky folder** opens the right folder in one click (Fishstrap/Voidstrap/Bloxstrap: their Modifications sky folder) and **Import sky pack (.zip)** uses a downloaded skybox fix / sky pack (files like `sky512_ft.tex`) as your sky.
 - **Skybox fix** (the community fix that swaps six cached sky mesh files in Roblox's `rbx-storage`) is built in. It turns on by itself with a custom sky and is removed when you go back to the default.
+- **Refresh on close**: when Roblox closes, Nova puts your sky, skybox fix and flags back, so a change made while Roblox was open (or an update undoing it) is applied for the next start. Keep Nova open in the background for this.
 - **Clean Roblox logs & temp files** in Maintenance.
 - **Sky**: pick a color or any picture (one for every side, or each side). Nova cuts a square, converts it to the
   512x512 DXT1 `.tex` files Roblox uses and puts them over its default sky, so every game that doesn't build its own sky

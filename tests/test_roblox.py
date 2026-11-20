@@ -488,3 +488,18 @@ def test_skybox_fix_follows_the_sky(home, monkeypatch):
     assert rbx.skyfix_on()
     rbx.clear_sky(); rbx.apply_sky_now()
     assert not rbx.skyfix_on() and not f.exists()
+
+
+def test_refresh_happens_when_roblox_closes(home):
+    d = _install(home)
+    rbx.detect()
+    rbx.set_sky_color("#445566")
+    assert rbx.apply_sky_now()
+    f = d / "content" / "sky" / "sky512_ft.tex"
+    f.write_text("put back by an update")                                           # Roblox undid it while it ran
+    state = {"on": True}
+    w = rbx.CloseWatcher(lambda: state["on"])
+    assert w.tick() is False and f.read_text() == "put back by an update"           # still open: nothing happens
+    state["on"] = False
+    assert w.tick() is True and f.read_bytes()[:4] == b"DDS "                       # closed: sky is back
+    assert w.tick() is False                                                         # only once per close
