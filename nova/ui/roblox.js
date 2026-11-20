@@ -89,13 +89,20 @@ async function pageSky(v) {
     const zip = files.find((x) => /\.zip$/i.test(x.name));
     if (zip) return api("/api/roblox/sky-pack-upload", { raw: zip, filename: zip.name });
     const tex = files.filter((x) => /\.(tex|dds)$/i.test(x.name));
-    if (!tex.length) throw new Error("Pick a .zip, or the sky .tex files (like sky512_ft.tex).");
+    if (!tex.length) {
+      const sideOf = (n) => { const w = n.toLowerCase().replace(/\.[a-z0-9]+$/, "").match(/[a-z]+/g) || []; for (const x of w.reverse()) { const k = { bk: "back", back: "back", dn: "down", down: "down", bottom: "down", ft: "front", front: "front", lf: "left", left: "left", rt: "right", right: "right", up: "up", top: "up" }[x]; if (k) return k; } return null; };
+      const pics = files.filter((x) => /\.(png|jpe?g|webp|bmp|gif)$/i.test(x.name) && sideOf(x.name));
+      if (!pics.length) throw new Error("Nova found no sky files in there. It looks for .tex or .dds files (like sky512_ft.tex), or pictures named front, back, left, right, up and down. What it saw: " + (files.slice(0, 8).map((x) => x.name).join(", ") || "nothing") + (files.length > 8 ? ", \u2026" : ""));
+      let res;
+      for (const x of pics) res = await api("/api/roblox/sky-upload", { raw: await toSkyPng(x), filename: "sky.png", face: sideOf(x.name) });
+      return res;
+    }
     for (let i = 0; i < tex.length; i++) await api("/api/roblox/sky-file-upload", { raw: tex[i], filename: tex[i].name, headers: { "X-First": i === 0 ? "1" : "0" } });
     return rbxPost("/api/roblox/sky-files-done");
   };
   const pickPack = (folder) => {
     const f = el("input", { type: "file", style: { display: "none" } });
-    if (folder) f.setAttribute("webkitdirectory", ""); else { f.accept = ".zip,.tex,.dds"; f.multiple = true; }
+    if (folder) f.setAttribute("webkitdirectory", ""); else { f.accept = ".zip,.tex,.dds,image/*"; f.multiple = true; }
     f.addEventListener("change", async () => { if (!f.files.length) return; try { toast("Importing\u2026"); const res = await sendPack([...f.files]); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } });
     f.click();
   };

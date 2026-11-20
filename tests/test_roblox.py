@@ -523,3 +523,11 @@ def test_loose_sky_files_from_a_folder_work_too(home):
         assert False
     except rbx.NovaError:
         pass
+
+
+def test_sky_file_names_are_understood():
+    m = rbx._SKY_NAME.fullmatch
+    for name, side in (("sky512_ft.tex", "ft"), ("Front.dds", "ft"), ("Sky_Left.tex", "lf"), ("chill gray top.tex", "up"), ("sky512_dn.tex", "dn"), ("bottom.dds", "dn")):
+        assert m(name) and m(name).group(2) == side, name
+    assert m("sky512_ft.tex").group(1) == "512"
+    assert m("readme.txt") is None and m("notes.tex") is None
