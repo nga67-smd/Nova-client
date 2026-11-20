@@ -114,13 +114,13 @@ python -m pytest tests
 
 `NovaRoblox.exe` (from the same Releases page) is a second app built from this code, with its own data folder.
 Nova does not download or install Roblox. It finds the Roblox already on your PC (Roblox's own install, or a copy
-from Bloxstrap, Voidstrap or Fishstrap) and tunes and opens that one.
+from Bloxstrap or Voidstrap) and tunes and opens that one.
 
 - **Play from roblox.com**: press *Connect* once, then *Play* on roblox.com opens Roblox through Nova. When a newer
   Roblox is out, the game is handed to Roblox's own launcher first so it can update. Sign-in stays in your browser.
 - **Ready-made skies** (Sunset, Starry night, Pastel, Deep space, Ocean), **Apply again** and **Check sky** buttons. Nova also
-  puts your sky in Bloxstrap/Voidstrap/Fishstrap's Modifications folder so they stop undoing it. Close Roblox before changing the sky.
-- **Open sky folder** opens the right folder in one click (Fishstrap/Voidstrap/Bloxstrap: their Modifications sky folder) and **Import sky pack (.zip)** uses a downloaded skybox fix / sky pack (files like `sky512_ft.tex`) as your sky.
+  puts your sky in Bloxstrap/Voidstrap's Modifications folder so they stop undoing it. Close Roblox before changing the sky.
+- **Open sky folder** opens the right folder in one click (Voidstrap/Bloxstrap: their Modifications sky folder) and **Import sky pack (.zip)** uses a downloaded skybox fix / sky pack (files like `sky512_ft.tex`) as your sky.
 - **Skybox fix** (the community fix that swaps six cached sky mesh files in Roblox's `rbx-storage`) is built in. It turns on by itself with a custom sky and is removed when you go back to the default.
 - **Refresh on close**: when Roblox closes, Nova puts your sky, skybox fix and flags back, so a change made while Roblox was open (or an update undoing it) is applied for the next start. Keep Nova open in the background for this.
 - **Your skies**: every imported sky pack is kept in a list; pick any with one click. Import many at once (a folder of sky folders, or several .zip files).

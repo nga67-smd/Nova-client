@@ -25,7 +25,7 @@ from .util import NovaError, http_get_json, read_json, safe_extract_zip, write_j
 VERSION_URL = "https://clientsettingscdn.roblox.com/v2/client-version/WindowsPlayer"
 PLAYER_EXE = "RobloxPlayerBeta.exe"
 VERSION_RX = re.compile(r"^version-[0-9a-f]{8,32}$")
-LAUNCHERS = (("Roblox", "Roblox"), ("Bloxstrap", "Bloxstrap"), ("Voidstrap", "Voidstrap"), ("Fishstrap", "Fishstrap"))
+LAUNCHERS = (("Roblox", "Roblox"), ("Bloxstrap", "Bloxstrap"), ("Voidstrap", "Voidstrap"))
 
 
 def supported() -> bool:
@@ -256,7 +256,7 @@ def overlay_dir() -> Path | None:
     check Roblox's files every time they start it and put back anything that isn't in their Modifications folder."""
     src = _state().get("from", "")
     base = os.environ.get("LOCALAPPDATA")
-    if base and src in ("Bloxstrap", "Voidstrap", "Fishstrap"):
+    if base and src in ("Bloxstrap", "Voidstrap"):
         return Path(base) / src / "Modifications"
     return None
 
@@ -565,7 +565,7 @@ def sky_folder(vdir: Path) -> Path:
 
 
 def sky_pack_folder() -> Path:
-    """The one folder to open for sky textures: the launcher's own Modifications sky folder (Fishstrap etc. keep what is put
+    """The one folder to open for sky textures: the launcher's own Modifications sky folder (Bloxstrap etc. keep what is put
     there), otherwise Roblox's sky folder."""
     ov = overlay_dir()
     if ov:
