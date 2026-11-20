@@ -251,6 +251,35 @@ def build_routes(app: App):
         rbx.delete_library_sky(str(ctx.body.get("name", "")))
         return rbx.status()
 
+    @route("POST", "/api/roblox/crosshair/preset")
+    def _rbx_cross_preset(ctx):
+        rbx.set_crosshair_preset(str(ctx.body.get("shape", "")), str(ctx.body.get("color", "")), str(ctx.body.get("size", "medium")))
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
+
+    @route("POST", "/api/roblox/crosshair-upload")      # raw PNG body made by the browser
+    def _rbx_cross_upload(ctx):
+        n = int(ctx.header("Content-Length") or 0)
+        if n <= 0 or n > 2 * 1024 * 1024:
+            raise NovaError("That picture is too big for a crosshair.")
+        tmp = paths.data_dir() / "cross.new"
+        ctx.save_upload(tmp)
+        rbx.set_crosshair_image(tmp, _unq(ctx.header("X-Name")))
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
+
+    @route("POST", "/api/roblox/crosshair/pointer")
+    def _rbx_cross_pointer(ctx):
+        rbx.set_crosshair_pointer(bool(ctx.body.get("on")))
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
+
+    @route("POST", "/api/roblox/crosshair/clear")
+    def _rbx_cross_clear(ctx):
+        rbx.clear_crosshair()
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
+
     @route("POST", "/api/roblox/sky/preset")
     def _rbx_sky_preset(ctx):
         rbx.set_sky_preset(str(ctx.body.get("name", "")))

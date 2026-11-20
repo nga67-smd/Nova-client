@@ -1,11 +1,11 @@
 /* Nova Roblox pages. Loaded before app.js; only used when the server says app === "roblox". */
 "use strict";
 
-window.RBX_PAGES = { roblox: pageRoblox, sky: pageSky, flags: pageFlags, rbxmods: pageRbxMods };
+window.RBX_PAGES = { roblox: pageRoblox, sky: pageSky, crosshair: pageCrosshair, flags: pageFlags, rbxmods: pageRbxMods };
 
 function rbxInit() {
   NAV.length = 0;
-  NAV.push(["roblox", "Roblox", "library"], ["sky", "Sky", "cosmetics"], ["flags", "FastFlags", "settings"], ["rbxmods", "Mods", "discover"], ["settings", "Appearance", "profiles"]);
+  NAV.push(["roblox", "Roblox", "library"], ["sky", "Sky", "cosmetics"], ["crosshair", "Crosshair", "cosmetics"], ["flags", "FastFlags", "settings"], ["rbxmods", "Mods", "discover"], ["settings", "Appearance", "profiles"]);
   S.page = "roblox";
   document.title = "Nova Roblox";
   const name = document.querySelector(".brand-name"); if (name) name.textContent = "Nova Roblox";
@@ -164,6 +164,41 @@ async function pageFlags(v) {
       el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Add any flag by name. A value can be true, false, a whole number or text. Roblox ignores flags it doesn't allow, so some may do nothing."),
       list, el("div", { style: { height: "12px" } }),
       el("div", { class: "row" }, el("button", { class: "btn sm", onclick: () => { rows.push(["", ""]); draw(); } }, icon("plus"), "Add flag"), el("button", { class: "btn primary sm", onclick: save }, "Save flags"))));
+}
+
+async function pageCrosshair(v) {
+  const r = S.data.roblox, c = r.crosshair;
+  let shape = "plus_gap", size = "medium";
+  const color = el("input", { type: "color", value: "#00ff66", "aria-label": "Crosshair color" });
+  const done = (res) => toast(res.applied ? "Crosshair saved. Restart Roblox to see it." : r.running ? "Crosshair saved, but Roblox is open. Close Roblox, then use Apply again on the Sky page." : "Crosshair saved. It applies when Roblox starts through Nova.", res.applied ? "ok" : "");
+  const use = async () => { try { const res = await rbxPost("/api/roblox/crosshair/preset", { shape, color: color.value, size }); await rbxRefresh(); done(res); } catch (e) { fail(e); } };
+  // Cursors are small: the browser fits the picture inside 64x64 and keeps transparency.
+  const toCrossPng = async (file) => {
+    const bmp = await createImageBitmap(file), cv = document.createElement("canvas"); cv.width = cv.height = 64;
+    const k = Math.min(64 / bmp.width, 64 / bmp.height), w = bmp.width * k, h = bmp.height * k, g = cv.getContext("2d"); g.imageSmoothingQuality = "high";
+    g.drawImage(bmp, (64 - w) / 2, (64 - h) / 2, w, h);
+    return await new Promise((ok, no) => cv.toBlob((b) => b ? ok(b) : no(new Error("Couldn't read that picture.")), "image/png"));
+  };
+  const pick = () => {
+    const f = el("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif,image/bmp", style: { display: "none" } });
+    f.addEventListener("change", async () => { if (!f.files[0]) return; try { const png = await toCrossPng(f.files[0]); const res = await api("/api/roblox/crosshair-upload", { raw: png, filename: "crosshair.png", headers: { "X-Name": encodeURIComponent(f.files[0].name.replace(/\.[^.]+$/, "")) } }); await rbxRefresh(); done(res); } catch (e) { fail(e); } });
+    f.click();
+  };
+  const shapeBtns = Object.entries(c.shapes).map(([k, name]) => el("button", { class: "btn sm" + (k === shape ? " primary" : ""), onclick: (e) => { shape = k; shapeBtns.forEach((b) => b.classList.remove("primary")); e.currentTarget.classList.add("primary"); } }, name));
+  const sizeBtns = [["small", "Small"], ["medium", "Medium"], ["large", "Large"]].map(([k, name]) => el("button", { class: "btn sm" + (k === size ? " primary" : ""), onclick: (e) => { size = k; sizeBtns.forEach((b) => b.classList.remove("primary")); e.currentTarget.classList.add("primary"); } }, name));
+  put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Crosshair"), el("p", {}, "Put a crosshair in the middle of your screen in first person and shift lock. Pick a ready-made one or import your own picture."))),
+    el("div", { class: "section card" }, el("h2", {}, c.set ? "Your crosshair: " + c.name : "No custom crosshair"),
+      c.set ? el("div", { class: "row", style: { gap: "16px", "margin-top": "10px", "align-items": "center" } }, el("img", { src: c.preview, alt: "Crosshair preview", width: 64, height: 64, style: { background: "#555", "border-radius": "10px" } }),
+        el("button", { class: "btn ghost", onclick: async () => { try { await rbxPost("/api/roblox/crosshair/clear"); await rbxRefresh(); toast("Back to Roblox's own cursor.", "ok"); } catch (e) { fail(e); } } }, "Back to the default")) : null,
+      toggleRow("Use it as my mouse pointer too", "Also replaces the normal arrow in menus. Leave this off to keep the arrow and only change the in-game aim.", !!c.pointer, async (on) => { try { await rbxPost("/api/roblox/crosshair/pointer", { on }); await rbxRefresh(); } catch (e) { fail(e); } })),
+    el("div", { class: "section card" }, el("h2", {}, "Ready-made"),
+      el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "8px", "margin-top": "10px" } }, ...shapeBtns),
+      el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "8px", "margin-top": "10px", "align-items": "center" } }, ...sizeBtns, color),
+      el("div", { class: "row", style: { gap: "10px", "margin-top": "14px" } }, el("button", { class: "btn primary", onclick: use }, "Use this crosshair"))),
+    el("div", { class: "section card" }, el("h2", {}, "Import your own"),
+      el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Any picture works. A PNG with a see-through background looks best. Nova shrinks it to fit a small cursor."),
+      el("button", { class: "btn", onclick: pick }, icon("plus"), "Import picture")),
+    el("p", { class: "muted small" }, "Some games draw their own crosshair or hide the cursor, and Nova can't change those."));
 }
 
 async function pageRbxMods(v) {

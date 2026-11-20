@@ -560,3 +560,62 @@ def test_sky_library_keeps_imports_and_switches(home, monkeypatch):
             assert False
         except rbx.NovaError:
             pass
+
+
+def _alpha_at(png: bytes, x: int, y: int) -> int:
+    import zlib as z
+    pos, idat = 8, b""
+    while pos < len(png):
+        n = int.from_bytes(png[pos:pos + 4], "big")
+        if png[pos + 4:pos + 8] == b"IDAT":
+            idat += png[pos + 8:pos + 8 + n]
+        pos += 12 + n
+    raw = z.decompress(idat)
+    row = raw[y * (64 * 4 + 1) + 1:(y + 1) * (64 * 4 + 1)]
+    return row[x * 4 + 3]
+
+
+def test_crosshair_presets_are_real_pngs_and_reach_roblox(home):
+    d = _install(home)
+    (d / "content" / "textures" / "Cursors" / "KeyboardMouse").mkdir(parents=True)
+    (d / "content" / "textures" / "Cursors" / "KeyboardMouse" / "ArrowFarCursor.png").write_text("orig")
+    rbx.detect()
+    for shape in rbx.CROSS_SHAPES:
+        png = rbx.render_crosshair(shape, "#00ff66", "medium")
+        assert png[:8] == b"\x89PNG\r\n\x1a\n" and _alpha_at(png, 0, 0) == 0                 # see-through corners
+    assert _alpha_at(rbx.render_crosshair("dot", "#ff0000", "medium"), 32, 32) == 255           # solid in the middle
+    assert _alpha_at(rbx.render_crosshair("plus_gap", "#ff0000", "medium"), 32, 32) == 0        # the gap is empty
+    info = rbx.set_crosshair_preset("plus", "#ff0000", "large")
+    assert info["set"] and info["preview"].startswith("data:image/png")
+    assert rbx.apply_sky_now()
+    cur = d / "content" / "textures" / "Cursors" / "KeyboardMouse"
+    assert (cur / "ArrowFarCursor.png").read_bytes()[:4] == b"\x89PNG" and (cur / "MouseLockedCursor.png").exists()
+    assert not (cur / "ArrowCursor.png").exists()                                                # the arrow is left alone
+    rbx.set_crosshair_pointer(True)
+    rbx.apply_sky_now()
+    assert (cur / "ArrowCursor.png").exists()
+    assert rbx.mods_info() == []                                                                 # not shown as a normal mod
+    rbx.clear_crosshair()
+    assert rbx.apply_sky_now() and (cur / "ArrowFarCursor.png").read_text() == "orig" and not (cur / "MouseLockedCursor.png").exists()
+    for bad in (("nope", "#ffffff", "medium"), ("dot", "red", "medium"), ("dot", "#ffffff", "huge")):
+        try:
+            rbx.render_crosshair(*bad)
+            assert False
+        except rbx.NovaError:
+            pass
+
+
+def test_crosshair_import_checks_the_picture(home):
+    _install(home)
+    rbx.detect()
+    ok = home / "c.png"
+    ok.write_bytes(rbx.render_crosshair("circle", "#ffffff"))
+    assert rbx.set_crosshair_image(ok, "mine")["name"] == "mine" and not ok.exists()
+    bad = home / "b.png"
+    bad.write_bytes(b"not a png")
+    try:
+        rbx.set_crosshair_image(bad, "x")
+        assert False
+    except rbx.NovaError:
+        pass
+    assert not bad.exists()
