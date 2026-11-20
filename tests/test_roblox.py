@@ -503,3 +503,23 @@ def test_refresh_happens_when_roblox_closes(home):
     state["on"] = False
     assert w.tick() is True and f.read_bytes()[:4] == b"DDS "                       # closed: sky is back
     assert w.tick() is False                                                         # only once per close
+
+
+def test_loose_sky_files_from_a_folder_work_too(home):
+    d = _install(home)
+    rbx.detect()
+    dds = rbx.encode_dxt1(512, 512, bytes((10, 200, 90)) * 512 * 512)
+
+    def save(data):
+        return lambda dest: dest.write_bytes(data)
+    for i, code in enumerate(("bk", "dn", "ft", "lf", "rt", "up")):
+        rbx.stage_sky_file(f"sky512_{code}.tex", i == 0, save(dds))
+    rbx.stage_sky_file("readme.txt", False, save(b"no"))                           # other files are ignored
+    rbx.finish_sky_files()
+    assert all(rbx.sky_info()["faces"].values()) and rbx.apply_sky_now()
+    assert (d / "content" / "sky" / "sky512_up.tex").read_bytes() == dds
+    try:
+        rbx.finish_sky_files()
+        assert False
+    except rbx.NovaError:
+        pass
