@@ -610,6 +610,10 @@ def build_sky_mod(vdir: Path) -> None:
     """Turn the chosen sky pictures into a mod that replaces Roblox's own sky files, so every default sky changes."""
     target = mods_dir() / SKY_MOD
     shutil.rmtree(target, ignore_errors=True)
+    try:
+        sync_skyfix()
+    except NovaError:
+        pass                                          # Roblox was using the cache; the sky files below still get written
     if not sky_info()["set"]:
         return
     where = sky_files(vdir)
@@ -763,7 +767,7 @@ def status() -> dict:
     return {"supported": supported(), "version": v, "from": st.get("from", "") if v else "", "found": existing_installs()[:3],
             "registered": protocol_registered(), "flags": flags,
             "presets": {k: {"name": p["name"], "desc": p["desc"]} for k, p in PRESETS.items()}, "preset_on": preset_states(flags),
-            "sky": sky_info(), "sky_presets": {k: v[0] for k, v in SKY_PRESETS.items()}, "mods": mods_info(), "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}
+            "sky": sky_info(), "skyfix": {"on": skyfix_on(), "enabled": st.get("skyfix", True)}, "sky_presets": {k: v[0] for k, v in SKY_PRESETS.items()}, "mods": mods_info(), "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}
 
 
 def _junk_dirs() -> list[Path]:
@@ -795,3 +799,91 @@ def cleanup() -> dict:
             except OSError:
                 pass                                       # in use by a running Roblox
     return {"freed": freed}
+
+
+# ------------------------------------------------------------------ skybox fix
+# The community "skybox fix": Roblox keeps the sky mesh in its download cache (rbx-storage). These six cache entries hold a
+# corrected mesh, so a custom sky shows properly in every game. They are made read-only so Roblox doesn't overwrite them.
+SKYFIX_NAMES = ("6c94b9385e52d221f0538aadaceead2d", "7328622d2d509b95dd4dd2c721d1ca8b", "78cb2e93aee0cdbd79b15a866bc93a54",
+                "9244e00ff9fd6cee0bb40a262bb35d31", "a50f6563c50ca4d5dcb255ee5cfab097", "a564ec8aeef3614e788d02f0090089d8")
+SKYFIX_DATA = (
+    "UkJYSAIAAAA2AAAAaHR0cHM6Ly9jMC5yYnhjZG4uY29tLzRkYTJmZmMyZTZkNzBiMGJhMTk1NmYxNGMzZDZmNTNmAMgAAAADAwAA"
+    "r3LVTeUAAABaZumlAwAAAHgtYW16LWlkLTI6IDNzVnkyTjloTkFMV2FjNG1Bc0xpUTc1UnM2WjZGMFBRMnN2WWl4djdRamFBWEcw"
+    "dkZBTGtva0M4N2NvZktYZFcyMzlhKy9tRXVyRT0NCngtYW16LXJlcXVlc3QtaWQ6IDU4SkgxR0VNSkNCNVRNNUINCngtYW16LXJl"
+    "cGxpY2F0aW9uLXN0YXR1czogQ09NUExFVEVEDQpMYXN0LU1vZGlmaWVkOiBUaHUsIDI1IEp1bCAyMDI0IDIxOjU3OjUyIEdNVA0K"
+    "RVRhZzogIjRkYTJmZmMyZTZkNzBiMGJhMTk1NmYxNGMzZDZmNTNmIg0KeC1hbXotc2VydmVyLXNpZGUtZW5jcnlwdGlvbjogQUVT"
+    "MjU2DQpDb250ZW50LUVuY29kaW5nOiBnemlwDQp4LWFtei12ZXJzaW9uLWlkOiB0U2VseEVzbTd2VklaamxsOTk1Ty5Db2NMUDZD"
+    "S3ppQg0KQWNjZXB0LVJhbmdlczogYnl0ZXMNCkNvbnRlbnQtVHlwZTogYXBwbGljYXRpb24vb2N0ZXQtc3RyZWFtDQpTZXJ2ZXI6"
+    "IEFtYXpvblMzDQpDb250ZW50LUxlbmd0aDogMTQwDQpDYWNoZS1Db250cm9sOiBwdWJsaWMsIG1heC1hZ2U9MjY1MTQ3OTINCkRh"
+    "dGU6IEZyaSwgMTMgRGVjIDIwMjQgMjM6MDM6NDggR01UDQpDb25uZWN0aW9uOiBrZWVwLWFsaXZlDQpWYXJ5OiBBY2NlcHQtRW5j"
+    "b2RpbmcNClJieC1DZG4tUHJvdmlkZXI6IGFrDQpBY2Nlc3MtQ29udHJvbC1FeHBvc2UtSGVhZGVyczogUmJ4LUNkbi1Qcm92aWRl"
+    "cixBa2FtYWktUmVxdWVzdC1CQw0KQWNjZXNzLUNvbnRyb2wtQWxsb3ctTWV0aG9kczogR0VUDQpBY2Nlc3MtQ29udHJvbC1BbGxv"
+    "dy1PcmlnaW46ICoNClRpbWluZy1BbGxvdy1PcmlnaW46ICoNCnZlcnNpb24gNC4wMQoYAAQABAAAAAIAAAACAAAAAAAAAAAAAQAy"
+    "R8O+Pk2MwRRHwz70BDW/UHgnM/IENb8AAIA/AAAAAH8Af/7/////Q0fDvjxNjEFlR8M+9AQ1v1B4JzPyBDW/AAAAAAAAAAB/AH/+"
+    "/////zJHwz48TYxBFEfDvvQENb9QeCcz8gQ1vwAAAAAAAIA/fwB//v////9DR8M+Pk2MwWVHw770BDW/UHgnM/IENb8AAIA/AACA"
+    "P38Af/7/////AAAAAAEAAAACAAAAAAAAAAIAAAADAAAAAAAAAAIAAAA="
+)
+
+
+def _skyfix_files() -> list[Path]:
+    base = os.environ.get("LOCALAPPDATA")
+    if not base:
+        return []
+    return [Path(base) / "Roblox" / "rbx-storage" / n[:2] / n for n in SKYFIX_NAMES]
+
+
+def skyfix_on() -> bool:
+    import base64
+    want = base64.b64decode(SKYFIX_DATA)
+    try:
+        files = _skyfix_files()
+        return bool(files) and all(f.read_bytes() == want for f in files)
+    except OSError:
+        return False
+
+
+def _writable(f: Path) -> None:
+    try:
+        os.chmod(f, 0o666)
+    except OSError:
+        pass
+
+
+def install_skyfix() -> None:
+    import base64
+    import stat
+    want = base64.b64decode(SKYFIX_DATA)
+    for f in _skyfix_files():
+        try:
+            f.parent.mkdir(parents=True, exist_ok=True)
+            if f.exists():
+                _writable(f)
+            f.write_bytes(want)
+            os.chmod(f, stat.S_IREAD)
+        except OSError as e:
+            raise NovaError("Couldn't update Roblox's sky cache. Close Roblox and try again.") from e
+
+
+def remove_skyfix() -> None:
+    """Delete the fixed cache entries; Roblox downloads its own again the next time it needs them."""
+    for f in _skyfix_files():
+        if f.exists():
+            _writable(f)
+            f.unlink(missing_ok=True)
+
+
+def sync_skyfix() -> None:
+    """The fix is on while a custom sky is set (unless turned off), off otherwise."""
+    want = sky_info()["set"] and _state().get("skyfix", True)
+    if want and not skyfix_on():
+        install_skyfix()
+    elif not want and _state().get("skyfix_added") and skyfix_on():
+        remove_skyfix()
+    st = _state()
+    if bool(want) != bool(st.get("skyfix_added")):
+        write_json(_state_file(), {**st, "skyfix_added": bool(want)})
+
+
+def set_skyfix(enabled: bool) -> None:
+    write_json(_state_file(), {**_state(), "skyfix": bool(enabled)})
+    sync_skyfix()

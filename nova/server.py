@@ -211,6 +211,11 @@ def build_routes(app: App):
         ok = rbx.apply_sky_now()
         return {**rbx.status(), "applied": ok}
 
+    @route("POST", "/api/roblox/skyfix")
+    def _rbx_skyfix(ctx):
+        rbx.set_skyfix(bool(ctx.body.get("on")))
+        return rbx.status()
+
     @route("POST", "/api/roblox/sky/preset")
     def _rbx_sky_preset(ctx):
         rbx.set_sky_preset(str(ctx.body.get("name", "")))
