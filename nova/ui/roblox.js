@@ -84,12 +84,18 @@ async function pageSky(v) {
       confirmDialog("Sky check", lines.join("\n\n"), "OK", () => {}, false);
     } catch (e) { fail(e); }
   };
+  const pickPack = () => {
+    const f = el("input", { type: "file", accept: ".zip,application/zip", style: { display: "none" } });
+    f.addEventListener("change", async () => { if (!f.files[0]) return; try { toast("Importing\u2026"); const res = await api("/api/roblox/sky-pack-upload", { raw: f.files[0], filename: f.files[0].name }); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } });
+    f.click();
+  };
   put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Sky"), el("p", {}, "Change Roblox's default sky. It applies to every game that uses the default sky, the next time Roblox starts.")),
-      el("button", { class: "btn", disabled: !r.sky_folder, onclick: () => rbxPost("/api/roblox/open-folder", { what: "sky" }).catch(fail) }, icon("folder"), "Open sky textures folder")),
+      el("button", { class: "btn", disabled: !r.sky_folder, onclick: () => rbxPost("/api/roblox/open-folder", { what: "sky" }).catch(fail) }, icon("folder"), "Open sky folder")),
     el("div", { class: "section card" }, el("h2", {}, sky.set ? "Custom sky is on" : "Using Roblox's own sky"),
       el("p", { class: "muted small", style: { margin: "4px 0 14px" } }, "Games that build their own sky keep it. Any picture works: Nova cuts a centered square and converts it to the format Roblox uses. Restart Roblox to see a change."),
       el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "14px" } }, color, el("button", { class: "btn", onclick: async () => { try { const res = await rbxPost("/api/roblox/sky/color", { color: color.value }); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } } }, "Use this color"),
         el("button", { class: "btn", onclick: () => pick("all") }, icon("plus"), "Use one picture for every side"),
+        el("button", { class: "btn", onclick: pickPack }, icon("plus"), "Import sky pack (.zip)"),
         sky.set ? el("button", { class: "btn ghost", onclick: async () => { try { await rbxPost("/api/roblox/sky/clear"); await rbxRefresh(); toast("Back to Roblox's own sky.", "ok"); } catch (e) { fail(e); } } }, "Back to the default sky") : null),
       el("div", { class: "muted small", style: { margin: "16px 0 8px" } }, "Ready-made skies"),
       el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "10px" } }, ...Object.entries(r.sky_presets || {}).map(([k, name]) => el("button", { class: "btn sm", onclick: async () => { try { const res = await rbxPost("/api/roblox/sky/preset", { name: k }); await rbxRefresh(); skyDone(res); } catch (e) { fail(e); } } }, name))),

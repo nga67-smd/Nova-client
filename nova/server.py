@@ -200,6 +200,17 @@ def build_routes(app: App):
         ok = rbx.apply_sky_now()
         return {**rbx.status(), "applied": ok}
 
+    @route("POST", "/api/roblox/sky-pack-upload")      # raw .zip body
+    def _rbx_sky_pack(ctx):
+        n = int(ctx.header("Content-Length") or 0)
+        if n <= 0 or n > 256 * 1024 * 1024:
+            raise NovaError("Pick a .zip under 256 MB.")
+        tmp = paths.data_dir() / "skypack.zip.new"
+        ctx.save_upload(tmp)
+        rbx.import_sky_pack(tmp)
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
+
     @route("POST", "/api/roblox/sky/preset")
     def _rbx_sky_preset(ctx):
         rbx.set_sky_preset(str(ctx.body.get("name", "")))
@@ -288,7 +299,7 @@ def build_routes(app: App):
     def _rbx_folder(ctx):
         what = ctx.body.get("what")
         if what == "sky":
-            folder = rbx.sky_folder(rbx.version_dir())
+            folder = rbx.sky_pack_folder()
             if not folder.is_dir():
                 raise NovaError("Roblox's sky folder wasn't found in this version of Roblox.")
             paths.open_in_file_manager(folder)

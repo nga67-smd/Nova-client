@@ -563,6 +563,49 @@ def sky_folder(vdir: Path) -> Path:
     return vdir / SKY_DEFAULT_DIRS[0]
 
 
+def sky_pack_folder() -> Path:
+    """The one folder to open for sky textures: the launcher's own Modifications sky folder (Fishstrap etc. keep what is put
+    there), otherwise Roblox's sky folder."""
+    ov = overlay_dir()
+    if ov:
+        d = ov / SKY_DEFAULT_DIRS[0]
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    return sky_folder(version_dir())
+
+
+def import_sky_pack(tmp: Path) -> dict:
+    """Use a downloaded sky pack (.zip with sky512_*.tex or .dds files, like a skybox fix) as the sky."""
+    found: dict[str, bytes] = {}
+    try:
+        if tmp.stat().st_size > 256 * 1024 * 1024:
+            raise NovaError("That sky pack is too big.")
+        try:
+            z = zipfile.ZipFile(tmp)
+        except zipfile.BadZipFile:
+            raise NovaError("That isn't a .zip file.") from None
+        with z:
+            for info in z.infolist():
+                m = re.fullmatch(r"sky(\d*)_(bk|dn|ft|lf|rt|up)\.(tex|dds)", Path(info.filename).name, re.I)
+                if not m or info.is_dir() or info.file_size > 16 * 1024 * 1024:
+                    continue
+                code = m.group(2).lower()
+                if code in found and m.group(1) != "512":
+                    continue
+                data = z.read(info)
+                if data[:4] == b"DDS ":
+                    found[code] = data
+    finally:
+        tmp.unlink(missing_ok=True)
+    if not found:
+        raise NovaError("No sky textures (sky512_ft.tex and so on) were found in that .zip.")
+    clear_sky()
+    for face, code in SKY_FACES.items():
+        if code in found:
+            (_sky_dir() / f"{face}.dds").write_bytes(found[code])
+    return sky_info()
+
+
 def build_sky_mod(vdir: Path) -> None:
     """Turn the chosen sky pictures into a mod that replaces Roblox's own sky files, so every default sky changes."""
     target = mods_dir() / SKY_MOD
