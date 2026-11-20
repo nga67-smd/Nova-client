@@ -574,7 +574,35 @@ def sky_pack_folder() -> Path:
     return sky_folder(version_dir())
 
 
-_SKY_NAME = re.compile(r"(?:sky(\d*)_)?(bk|dn|ft|lf|rt|up)\.(tex|dds)", re.I)
+_SIDE_WORDS = {"bk": "bk", "back": "bk", "dn": "dn", "down": "dn", "bottom": "dn", "ft": "ft", "front": "ft", "lf": "lf", "left": "lf",
+               "rt": "rt", "right": "rt", "up": "up", "top": "up"}
+
+
+class _SkyName:
+    """A sky texture file name like sky512_ft.tex, front.dds or Sky_Left.tex: which side, and which size."""
+
+    @staticmethod
+    def fullmatch(name: str):
+        stem, dot, ext = name.lower().rpartition(".")
+        if not dot or ext not in ("tex", "dds"):
+            return None
+        words = re.findall(r"[a-z]+|\d+", stem)
+        side = next((_SIDE_WORDS[w] for w in reversed(words) if w in _SIDE_WORDS), None)
+        if not side:
+            return None
+        size = next((w for w in words if w.isdigit()), "")
+        return _SkyMatch(size, side)
+
+
+class _SkyMatch:
+    def __init__(self, size, side):
+        self._g = (size, side)
+
+    def group(self, i):
+        return self._g[i - 1]
+
+
+_SKY_NAME = _SkyName
 
 
 def _use_sky_textures(found: dict[str, bytes]) -> dict:
@@ -605,9 +633,7 @@ def import_sky_pack(tmp: Path) -> dict:
                 code = m.group(2).lower()
                 if code in found and m.group(1) != "512":
                     continue
-                data = z.read(info)
-                if data[:4] == b"DDS ":
-                    found[code] = data
+                found[code] = z.read(info)
     finally:
         tmp.unlink(missing_ok=True)
     return _use_sky_textures(found)
@@ -636,7 +662,7 @@ def finish_sky_files() -> dict:
             if not m or f.stat().st_size > 16 * 1024 * 1024:
                 continue
             code, data = m.group(2).lower(), f.read_bytes()
-            if data[:4] == b"DDS " and (code not in found or m.group(1) == "512"):
+            if code not in found or m.group(1) == "512":
                 found[code] = data
     finally:
         shutil.rmtree(stage, ignore_errors=True)
