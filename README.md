@@ -131,7 +131,7 @@ from Bloxstrap or Voidstrap) and tunes and opens that one.
   changes. A button opens Roblox's sky textures folder. Restart Roblox to see a change.
 - **FastFlags**: *High optimization* (lowest quality everywhere: no shadows, post effects or grass, lowest textures),
   presets (FPS limit, graphics API, ...) and your own flags. Roblox ignores flags it doesn't allow.
-- **Extras**: change the death sound (mute it or use your own .ogg/.mp3/.wav) and set any FPS limit from 30 to 1000.
+- **Extras**: change the death sound (mute it or use your own .ogg/.mp3/.wav) and set any FPS limit from 30 to 9999.
 - **Same look as Nova**: themes, backgrounds, button pictures and Discord "Playing Roblox" presence.
 
 Run from source with `python novarbx.py`. Nova Roblox isn't made by or connected to Roblox Corporation.

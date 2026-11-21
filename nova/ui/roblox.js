@@ -210,7 +210,7 @@ async function pageExtras(v) {
     f.addEventListener("change", async () => { if (!f.files[0]) return; try { const res = await api("/api/roblox/death-sound-upload", { raw: f.files[0], filename: f.files[0].name, headers: { "X-Name": encodeURIComponent(f.files[0].name.replace(/\.[^.]+$/, "")) } }); await rbxRefresh(); done(res); } catch (e) { fail(e); } });
     f.click();
   };
-  const fps = el("input", { type: "number", min: "30", max: "1000", step: "1", value: x.fps || "", placeholder: "e.g. 165", "aria-label": "FPS limit", style: { width: "110px" } });
+  const fps = el("input", { type: "number", min: "30", max: "9999", step: "1", value: x.fps || "", placeholder: "e.g. 165", "aria-label": "FPS limit", style: { width: "110px" } });
   const setFps = async (value) => { try { await rbxPost("/api/roblox/fps", { fps: value }); await rbxRefresh(); toast(value ? `FPS limit set to ${value}. It applies the next time Roblox starts.` : "Back to Roblox's own FPS limit.", "ok"); } catch (e) { fail(e); } };
   const mode = x.death === "mute" ? "Muted" : x.death === "custom" ? "Your sound" + (x.death_name ? ": " + x.death_name : "") : "Roblox's own";
   put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Extras"), el("p", {}, "Small things you can change."))),
@@ -221,9 +221,9 @@ async function pageExtras(v) {
         el("button", { class: "btn sm", onclick: () => setSound("mute") }, "Mute it"),
         x.death !== "default" ? el("button", { class: "btn sm ghost", onclick: () => setSound("default") }, "Back to the default") : null)),
     el("div", { class: "section card" }, el("h2", {}, "FPS limit"),
-      el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Pick any number from 30 to 1000. Match your screen's refresh rate for the smoothest result. " + (x.fps ? `Now: ${x.fps}.` : "Now: Roblox's own limit.")),
+      el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Pick any number from 30 to 9999. Match your screen's refresh rate for the smoothest result. " + (x.fps ? `Now: ${x.fps}.` : "Now: Roblox's own limit.")),
       el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "10px", "align-items": "center" } }, fps,
         el("button", { class: "btn sm primary", onclick: () => setFps(parseInt(fps.value, 10) || null) }, "Set limit"),
-        ...[60, 144, 240].map((n) => el("button", { class: "btn sm", onclick: () => setFps(n) }, String(n))),
+        ...[60, 144, 240, 9999].map((n) => el("button", { class: "btn sm", onclick: () => setFps(n) }, String(n))),
         x.fps ? el("button", { class: "btn sm ghost", onclick: () => setFps(null) }, "Back to the default") : null)));
 }

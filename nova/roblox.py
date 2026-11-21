@@ -1253,13 +1253,13 @@ def build_sound_mod(vdir: Path) -> None:
 
 
 def set_fps_cap(fps: int | None) -> None:
-    """None puts Roblox's own limit back. Otherwise 30-1000."""
+    """None puts Roblox's own limit back. Otherwise 30-9999."""
     flags = load_flags()
     if fps is None:
         flags.pop(FPS_FLAG, None)
     else:
-        if isinstance(fps, bool) or not isinstance(fps, int) or not 30 <= fps <= 1000:
-            raise NovaError("Pick an FPS limit between 30 and 1000.")
+        if isinstance(fps, bool) or not isinstance(fps, int) or not 30 <= fps <= 9999:
+            raise NovaError("Pick an FPS limit between 30 and 9999.")
         flags[FPS_FLAG] = fps
     save_flags(flags)
 

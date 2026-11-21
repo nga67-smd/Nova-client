@@ -643,7 +643,9 @@ def test_death_sound_and_fps_cap_extras(home):
     assert rbx.apply_sky_now() and ouch.read_text() == "orig" and rbx.mods_info() == []
     rbx.set_fps_cap(165)
     assert rbx.extras_info()["fps"] == 165 and rbx.load_flags()["DFIntTaskSchedulerTargetFps"] == 165
-    for bad_fps in (10, 5000, True, "60"):
+    rbx.set_fps_cap(9999)
+    assert rbx.extras_info()["fps"] == 9999
+    for bad_fps in (10, 10000, True, "60"):
         try:
             rbx.set_fps_cap(bad_fps)
             assert False
