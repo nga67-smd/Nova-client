@@ -653,3 +653,12 @@ def test_death_sound_and_fps_cap_extras(home):
             pass
     rbx.set_fps_cap(None)
     assert rbx.extras_info()["fps"] is None
+
+
+def test_roblox_from_any_launcher_folder_is_found(home):
+    d = _install(home, who="SomeOtherLauncher")
+    (home / "local" / "SomeOtherLauncher" / "Modifications").mkdir()
+    assert rbx.detect() == VER
+    assert rbx.status()["from"] == "SomeOtherLauncher"
+    assert rbx.overlay_dir() == home / "local" / "SomeOtherLauncher" / "Modifications"
+    assert d.is_dir()

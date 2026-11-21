@@ -57,11 +57,20 @@ def existing_installs() -> list[dict]:
     base = os.environ.get("LOCALAPPDATA")
     if not base:
         return []
-    found = []
-    for label, sub in LAUNCHERS:
-        vroot = Path(base) / sub / "Versions"
-        if not vroot.is_dir():
+    found, seen = [], set()
+    places = [(label, Path(base) / sub) for label, sub in LAUNCHERS]
+    try:                                                    # any other launcher that keeps Roblox in its own Versions folder
+        places += [(c.name, c) for c in Path(base).iterdir() if c.is_dir() and (c / "Versions").is_dir()]
+    except OSError:
+        pass
+    for env in ("ProgramFiles", "ProgramFiles(x86)"):
+        if os.environ.get(env):
+            places.append(("Roblox", Path(os.environ[env]) / "Roblox"))
+    for label, folder in places:
+        vroot = folder / "Versions"
+        if not vroot.is_dir() or str(vroot).lower() in seen:
             continue
+        seen.add(str(vroot).lower())
         for d in vroot.iterdir():
             if VERSION_RX.match(d.name) and (d / PLAYER_EXE).exists():
                 found.append({"version": d.name, "from": label, "path": str(d), "_t": (d / PLAYER_EXE).stat().st_mtime})
@@ -256,7 +265,7 @@ def overlay_dir() -> Path | None:
     check Roblox's files every time they start it and put back anything that isn't in their Modifications folder."""
     src = _state().get("from", "")
     base = os.environ.get("LOCALAPPDATA")
-    if base and src in ("Bloxstrap", "Voidstrap"):
+    if base and src and src != "Roblox" and (src in ("Bloxstrap", "Voidstrap") or (Path(base) / src / "Modifications").is_dir()):
         return Path(base) / src / "Modifications"
     return None
 
