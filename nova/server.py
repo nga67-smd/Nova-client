@@ -280,6 +280,32 @@ def build_routes(app: App):
         ok = rbx.apply_sky_now()
         return {**rbx.status(), "applied": ok}
 
+    @route("POST", "/api/roblox/death-sound")
+    def _rbx_death_sound(ctx):
+        rbx.set_death_sound(str(ctx.body.get("mode", "")))
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
+
+    @route("POST", "/api/roblox/death-sound-upload")      # raw sound body
+    def _rbx_death_upload(ctx):
+        n = int(ctx.header("Content-Length") or 0)
+        if n <= 0 or n > 2 * 1024 * 1024:
+            raise NovaError("Pick a sound under 2 MB.")
+        tmp = paths.data_dir() / "death.new"
+        ctx.save_upload(tmp)
+        rbx.set_death_sound("custom", tmp, _unq(ctx.header("X-Name")))
+        ok = rbx.apply_sky_now()
+        return {**rbx.status(), "applied": ok}
+
+    @route("POST", "/api/roblox/fps")
+    def _rbx_fps(ctx):
+        v = ctx.body.get("fps")
+        try:
+            rbx.set_fps_cap(None if v in (None, "", 0) else int(v))
+        except (TypeError, ValueError):
+            raise NovaError("Pick an FPS limit between 30 and 1000.") from None
+        return rbx.status()
+
     @route("POST", "/api/roblox/sky/preset")
     def _rbx_sky_preset(ctx):
         rbx.set_sky_preset(str(ctx.body.get("name", "")))
@@ -344,26 +370,6 @@ def build_routes(app: App):
         rbx.apply_preset(str(ctx.body.get("id", "")), bool(ctx.body.get("on")))
         return rbx.status()
 
-    @route("POST", "/api/roblox/mods-upload")      # raw .zip body
-    def _rbx_mod_add(ctx):
-        n = int(ctx.header("Content-Length") or 0)
-        if n <= 0 or n > 512 * 1024 * 1024:
-            raise NovaError("Pick a .zip under 512 MB.")
-        tmp = paths.data_dir() / "mod.zip.new"
-        ctx.save_upload(tmp)
-        rbx.import_mod_zip(tmp, ctx.header("X-Filename"))
-        return rbx.status()
-
-    @route("POST", "/api/roblox/mods/toggle")
-    def _rbx_mod_toggle(ctx):
-        rbx.set_mod_enabled(str(ctx.body.get("name", "")), bool(ctx.body.get("enabled")))
-        return rbx.status()
-
-    @route("POST", "/api/roblox/mods/delete")
-    def _rbx_mod_del(ctx):
-        rbx.delete_mod(str(ctx.body.get("name", "")))
-        return rbx.status()
-
     @route("POST", "/api/roblox/open-folder")
     def _rbx_folder(ctx):
         what = ctx.body.get("what")
@@ -375,7 +381,7 @@ def build_routes(app: App):
         elif what == "roblox":
             paths.open_in_file_manager(rbx.version_dir())
         else:
-            paths.open_in_file_manager(rbx.mods_dir() if what == "mods" else rbx.root())
+            paths.open_in_file_manager(rbx.root())
         return {"ok": True}
 
     @route("POST", "/api/button-art-upload")      # raw picture body; X-Slot says which button

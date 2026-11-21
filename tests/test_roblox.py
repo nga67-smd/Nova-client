@@ -367,12 +367,12 @@ def test_http_routes(home, monkeypatch):
     assert call("POST", "/api/roblox/sky-upload", raw=_png(), hdr={"X-Face": "up"})[0] == 200
     assert (d / "content" / "sky" / "sky512_up.tex").read_bytes()[:4] == b"DDS "
     assert call("POST", "/api/roblox/sky/clear")[1]["sky"]["set"] is False
-    code, st = call("POST", "/api/roblox/mods-upload", raw=_zip({"content/sky/s.png": "s"}), hdr={"X-Filename": "Sky.zip"})
-    assert code == 200 and st["mods"][0]["name"] == "Sky"
-    assert call("POST", "/api/roblox/mods-upload", raw=b"nope", hdr={"X-Filename": "a.zip"})[0] == 400
-    assert call("POST", "/api/roblox/mods/toggle", {"name": "Sky", "enabled": False})[1]["mods"][0]["enabled"] is False
-    assert call("POST", "/api/roblox/mods/delete", {"name": "Sky"})[1]["mods"] == []
-    assert call("POST", "/api/roblox/mods/delete", {"name": "../x"})[0] == 400
+    assert call("POST", "/api/roblox/fps", {"fps": 165})[1]["extras"]["fps"] == 165
+    assert call("POST", "/api/roblox/fps", {"fps": 5})[0] == 400 and call("POST", "/api/roblox/fps", {"fps": "abc"})[0] == 400
+    assert call("POST", "/api/roblox/fps", {"fps": None})[1]["extras"]["fps"] is None
+    assert call("POST", "/api/roblox/death-sound", {"mode": "mute"})[1]["extras"]["death"] == "mute"
+    assert call("POST", "/api/roblox/death-sound-upload", raw=b"nope")[0] == 400
+    assert call("POST", "/api/roblox/mods-upload", raw=b"x")[0] in (404, 405)               # the Mods tab is gone
 
 
 def test_sky_check_says_whether_your_sky_is_in_the_game_files(home):
@@ -619,3 +619,35 @@ def test_crosshair_import_checks_the_picture(home):
     except rbx.NovaError:
         pass
     assert not bad.exists()
+
+
+def test_death_sound_and_fps_cap_extras(home):
+    d = _install(home)
+    rbx.detect()
+    ouch = d / "content" / "sounds" / "ouch.ogg"
+    rbx.set_death_sound("mute")
+    assert rbx.apply_sky_now() and ouch.read_bytes()[:4] == b"RIFF"                      # silence instead of the oof
+    mine = home / "boom.ogg"
+    mine.write_bytes(b"OggS" + b"\0" * 40)
+    rbx.set_death_sound("custom", mine, "boom")
+    assert not mine.exists() and rbx.apply_sky_now() and ouch.read_bytes()[:4] == b"OggS" and rbx.extras_info()["death_name"] == "boom"
+    bad = home / "bad.ogg"
+    bad.write_bytes(b"not audio at all")
+    for args in (("custom", bad), ("loud", None)):
+        try:
+            rbx.set_death_sound(*args)
+            assert False
+        except rbx.NovaError:
+            pass
+    rbx.set_death_sound("default")
+    assert rbx.apply_sky_now() and ouch.read_text() == "orig" and rbx.mods_info() == []
+    rbx.set_fps_cap(165)
+    assert rbx.extras_info()["fps"] == 165 and rbx.load_flags()["DFIntTaskSchedulerTargetFps"] == 165
+    for bad_fps in (10, 5000, True, "60"):
+        try:
+            rbx.set_fps_cap(bad_fps)
+            assert False
+        except rbx.NovaError:
+            pass
+    rbx.set_fps_cap(None)
+    assert rbx.extras_info()["fps"] is None

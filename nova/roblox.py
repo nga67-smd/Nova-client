@@ -184,7 +184,7 @@ def write_flags(vdir: Path) -> None:
 
 def mod_names(managed: bool = False) -> list[str]:
     """Folders in Mods. The custom sky Nova builds itself is only included on request."""
-    return sorted(p.name for p in mods_dir().iterdir() if p.is_dir() and (managed or p.name not in (SKY_MOD, CROSS_MOD)))
+    return sorted(p.name for p in mods_dir().iterdir() if p.is_dir() and (managed or p.name not in (SKY_MOD, CROSS_MOD, SOUND_MOD)))
 
 
 def mods_info() -> list[dict]:
@@ -216,7 +216,7 @@ def import_mod_zip(tmp: Path, filename: str) -> str:
         raise NovaError("Mods are imported as .zip files. The folders inside should match Roblox's (content, ExtraContent, ...).")
     base = re.sub(r"[^A-Za-z0-9 _.-]+", "", Path(filename or "mod").stem).strip(" .") or "mod"
     name, n = base, 2
-    while (mods_dir() / name).exists() or name in (SKY_MOD, CROSS_MOD):
+    while (mods_dir() / name).exists() or name in (SKY_MOD, CROSS_MOD, SOUND_MOD):
         name, n = f"{base} {n}", n + 1
     dest = mods_dir() / name
     try:
@@ -328,6 +328,7 @@ def apply_mods(vdir: Path) -> int:
 
 SKY_FACES = {"front": "ft", "back": "bk", "left": "lf", "right": "rt", "up": "up", "down": "dn"}
 CROSS_MOD = "Nova Crosshair"                         # same idea for the custom crosshair
+SOUND_MOD = "Nova Sounds"
 SKY_MOD = "Nova Sky"                                  # the folder Nova keeps in Mods for the custom sky
 SKY_SIZE = 512
 SKY_FILE = re.compile(r"^sky\d*_(bk|dn|ft|lf|rt|up)\.tex$", re.I)
@@ -726,6 +727,7 @@ def build_sky_mod(vdir: Path) -> None:
     except NovaError:
         pass                                          # Roblox was using the cache; the sky files below still get written
     build_crosshair_mod(vdir)
+    build_sound_mod(vdir)
     if not sky_info()["set"]:
         return
     where = sky_files(vdir)
@@ -879,7 +881,7 @@ def status() -> dict:
     return {"supported": supported(), "version": v, "from": st.get("from", "") if v else "", "found": existing_installs()[:3],
             "registered": protocol_registered(), "flags": flags,
             "presets": {k: {"name": p["name"], "desc": p["desc"]} for k, p in PRESETS.items()}, "preset_on": preset_states(flags),
-            "sky": sky_info(), "crosshair": crosshair_info(), "sky_library": library_list(), "skyfix": {"on": skyfix_on(), "enabled": st.get("skyfix", True)}, "sky_presets": {k: v[0] for k, v in SKY_PRESETS.items()}, "mods": mods_info(), "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}
+            "sky": sky_info(), "crosshair": crosshair_info(), "extras": extras_info(), "sky_library": library_list(), "skyfix": {"on": skyfix_on(), "enabled": st.get("skyfix", True)}, "sky_presets": {k: v[0] for k, v in SKY_PRESETS.items()}, "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}
 
 
 def _junk_dirs() -> list[Path]:
@@ -1193,3 +1195,76 @@ def build_crosshair_mod(vdir: Path) -> None:
     for n in names:
         (target / CURSOR_DIR).mkdir(parents=True, exist_ok=True)
         shutil.copyfile(_cross_file(), target / CURSOR_DIR / n)
+
+
+# ------------------------------------------------------------------ extras: death sound and FPS limit
+
+FPS_FLAG = "DFIntTaskSchedulerTargetFps"
+DEATH_SOUND = "content/sounds/ouch.ogg"                 # the "oof" Roblox plays when a character dies
+
+
+def _snd_dir() -> Path:
+    d = root() / "Sounds"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _silent_wav() -> bytes:
+    n = 8000 // 5                                        # a fifth of a second of silence
+    return b"RIFF" + struct.pack("<I", 36 + n) + b"WAVEfmt " + struct.pack("<IHHIIHH", 16, 1, 1, 8000, 8000, 1, 8) + b"data" + struct.pack("<I", n) + b"\x80" * n
+
+
+def _sound_mode() -> str:
+    return (read_json(_snd_dir() / "sound.json", {}) or {}).get("death", "default")
+
+
+def set_death_sound(mode: str, tmp: Path | None = None, name: str = "") -> None:
+    """mode: default | mute | custom (a short .ogg, .mp3 or .wav you imported)."""
+    try:
+        if mode not in ("default", "mute", "custom"):
+            raise NovaError("Pick default, mute or your own sound.")
+        if mode == "custom":
+            if tmp is None or not tmp.is_file() or tmp.stat().st_size > 2 * 1024 * 1024:
+                raise NovaError("Pick a sound under 2 MB.")
+            head = tmp.read_bytes()[:12]
+            if not (head[:4] == b"OggS" or head[:3] == b"ID3" or head[:2] in (b"\xff\xfb", b"\xff\xf3", b"\xff\xf2") or (head[:4] == b"RIFF" and head[8:12] == b"WAVE")):
+                raise NovaError("Use an .ogg, .mp3 or .wav sound.")
+            shutil.copyfile(tmp, _snd_dir() / "death.snd")
+    finally:
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
+    write_json(_snd_dir() / "sound.json", {"death": mode, "name": (name or "")[:40]})
+
+
+def build_sound_mod(vdir: Path) -> None:
+    target = mods_dir() / SOUND_MOD
+    shutil.rmtree(target, ignore_errors=True)
+    mode = _sound_mode()
+    if mode == "default":
+        return
+    src = _snd_dir() / "death.snd"
+    if mode == "custom" and not src.is_file():
+        return
+    (target / DEATH_SOUND).parent.mkdir(parents=True, exist_ok=True)
+    if mode == "mute":
+        (target / DEATH_SOUND).write_bytes(_silent_wav())
+    else:
+        shutil.copyfile(src, target / DEATH_SOUND)
+
+
+def set_fps_cap(fps: int | None) -> None:
+    """None puts Roblox's own limit back. Otherwise 30-1000."""
+    flags = load_flags()
+    if fps is None:
+        flags.pop(FPS_FLAG, None)
+    else:
+        if isinstance(fps, bool) or not isinstance(fps, int) or not 30 <= fps <= 1000:
+            raise NovaError("Pick an FPS limit between 30 and 1000.")
+        flags[FPS_FLAG] = fps
+    save_flags(flags)
+
+
+def extras_info() -> dict:
+    meta = read_json(_snd_dir() / "sound.json", {}) or {}
+    fps = load_flags().get(FPS_FLAG)
+    return {"death": meta.get("death", "default"), "death_name": meta.get("name", ""), "fps": fps if isinstance(fps, int) and not isinstance(fps, bool) else None}

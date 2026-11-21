@@ -1,11 +1,11 @@
 /* Nova Roblox pages. Loaded before app.js; only used when the server says app === "roblox". */
 "use strict";
 
-window.RBX_PAGES = { roblox: pageRoblox, sky: pageSky, crosshair: pageCrosshair, flags: pageFlags, rbxmods: pageRbxMods };
+window.RBX_PAGES = { roblox: pageRoblox, sky: pageSky, crosshair: pageCrosshair, flags: pageFlags, extras: pageExtras };
 
 function rbxInit() {
   NAV.length = 0;
-  NAV.push(["roblox", "Roblox", "library"], ["sky", "Sky", "cosmetics"], ["crosshair", "Crosshair", "cosmetics"], ["flags", "FastFlags", "settings"], ["rbxmods", "Mods", "discover"], ["settings", "Appearance", "profiles"]);
+  NAV.push(["roblox", "Roblox", "library"], ["sky", "Sky", "cosmetics"], ["crosshair", "Crosshair", "cosmetics"], ["flags", "FastFlags", "settings"], ["extras", "Extras", "discover"], ["settings", "Appearance", "profiles"]);
   S.page = "roblox";
   document.title = "Nova Roblox";
   const name = document.querySelector(".brand-name"); if (name) name.textContent = "Nova Roblox";
@@ -201,20 +201,29 @@ async function pageCrosshair(v) {
     el("p", { class: "muted small" }, "Some games draw their own crosshair or hide the cursor, and Nova can't change those."));
 }
 
-async function pageRbxMods(v) {
-  const r = S.data.roblox;
-  const pick = () => {
-    const f = el("input", { type: "file", accept: ".zip,application/zip", style: { display: "none" } });
-    f.addEventListener("change", async () => { if (!f.files[0]) return; try { toast("Importing…"); await api("/api/roblox/mods-upload", { raw: f.files[0], filename: f.files[0].name }); await rbxRefresh(); toast("Mod imported.", "ok"); } catch (e) { fail(e); } });
+async function pageExtras(v) {
+  const r = S.data.roblox, x = r.extras;
+  const done = (res) => toast(res.applied ? "Saved. Restart Roblox to hear it." : r.running ? "Saved, but Roblox is open. Close Roblox, then use Apply again on the Sky page." : "Saved. It applies when Roblox starts through Nova.", res.applied ? "ok" : "");
+  const setSound = async (mode) => { try { const res = await rbxPost("/api/roblox/death-sound", { mode }); await rbxRefresh(); done(res); } catch (e) { fail(e); } };
+  const pickSound = () => {
+    const f = el("input", { type: "file", accept: ".ogg,.mp3,.wav,audio/*", style: { display: "none" } });
+    f.addEventListener("change", async () => { if (!f.files[0]) return; try { const res = await api("/api/roblox/death-sound-upload", { raw: f.files[0], filename: f.files[0].name, headers: { "X-Name": encodeURIComponent(f.files[0].name.replace(/\.[^.]+$/, "")) } }); await rbxRefresh(); done(res); } catch (e) { fail(e); } });
     f.click();
   };
-  put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Mods"), el("p", {}, "Change how Roblox looks and sounds, like cursors, skies, fonts and sounds. Mods are copied over Roblox's files when it starts.")),
-      el("button", { class: "btn", onclick: () => rbxPost("/api/roblox/open-folder", { what: "mods" }).catch(fail) }, icon("folder"), "Open Mods folder"),
-      el("button", { class: "btn primary", onclick: pick }, icon("plus"), "Import mod (.zip)")),
-    r.mods.length ? el("div", { class: "section card" }, ...r.mods.map((m) => el("div", { class: "toggle-row" },
-      el("div", { class: "t" }, m.name, el("small", {}, `${m.files} file${m.files === 1 ? "" : "s"}`)),
-      el("button", { class: "btn ghost sm", "aria-label": "Delete " + m.name, onclick: () => confirmDialog("Delete " + m.name + "?", "This removes the mod from your Mods folder.", "Delete", async () => { try { await rbxPost("/api/roblox/mods/delete", { name: m.name }); await rbxRefresh(); } catch (e) { fail(e); } }) }, icon("trash")),
-      el("label", { class: "switch" }, el("input", { type: "checkbox", checked: m.enabled, "aria-label": "Enable " + m.name, onchange: async (e) => { try { await rbxPost("/api/roblox/mods/toggle", { name: m.name, enabled: e.target.checked }); await loadState(); } catch (x) { fail(x); } } }), el("i"))))) :
-      el("div", { class: "empty" }, el("h2", {}, "No mods yet"), el("p", {}, "Import a .zip whose folders match Roblox's (for example content/textures or content/sounds). Nova puts the files in place when Roblox starts and puts the originals back if you switch a mod off.")),
-    el("p", { class: "muted small", style: { margin: "14px 0 0" } }, "Stick to looks and sounds. Mods can break when Roblox updates, and changes that give an unfair advantage in games can get your account banned."));
+  const fps = el("input", { type: "number", min: "30", max: "1000", step: "1", value: x.fps || "", placeholder: "e.g. 165", "aria-label": "FPS limit", style: { width: "110px" } });
+  const setFps = async (value) => { try { await rbxPost("/api/roblox/fps", { fps: value }); await rbxRefresh(); toast(value ? `FPS limit set to ${value}. It applies the next time Roblox starts.` : "Back to Roblox's own FPS limit.", "ok"); } catch (e) { fail(e); } };
+  const mode = x.death === "mute" ? "Muted" : x.death === "custom" ? "Your sound" + (x.death_name ? ": " + x.death_name : "") : "Roblox's own";
+  put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Extras"), el("p", {}, "Small things you can change."))),
+    el("div", { class: "section card" }, el("h2", {}, "Death sound"),
+      el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "The sound Roblox plays when your character dies. Now: " + mode + ". Use a short .ogg, .mp3 or .wav under 2 MB."),
+      el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "10px" } },
+        el("button", { class: "btn sm", onclick: pickSound }, icon("plus"), "Use my own sound"),
+        el("button", { class: "btn sm", onclick: () => setSound("mute") }, "Mute it"),
+        x.death !== "default" ? el("button", { class: "btn sm ghost", onclick: () => setSound("default") }, "Back to the default") : null)),
+    el("div", { class: "section card" }, el("h2", {}, "FPS limit"),
+      el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Pick any number from 30 to 1000. Match your screen's refresh rate for the smoothest result. " + (x.fps ? `Now: ${x.fps}.` : "Now: Roblox's own limit.")),
+      el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "10px", "align-items": "center" } }, fps,
+        el("button", { class: "btn sm primary", onclick: () => setFps(parseInt(fps.value, 10) || null) }, "Set limit"),
+        ...[60, 144, 240].map((n) => el("button", { class: "btn sm", onclick: () => setFps(n) }, String(n))),
+        x.fps ? el("button", { class: "btn sm ghost", onclick: () => setFps(null) }, "Back to the default") : null)));
 }
