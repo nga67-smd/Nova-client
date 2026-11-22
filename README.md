@@ -125,7 +125,7 @@ from Bloxstrap or Voidstrap) and tunes and opens that one.
 - **Refresh on close**: when Roblox closes, Nova puts your sky, skybox fix and flags back, so a change made while Roblox was open (or an update undoing it) is applied for the next start. Keep Nova open in the background for this.
 - **Your skies**: every imported sky pack is kept in a list; pick any with one click. Import many at once (a folder of sky folders, or several .zip files).
 - **Crosshair**: pick one of 7 ready-made crosshairs (any color, 3 sizes) or import your own picture. It replaces the in-game aim cursor (`ArrowFarCursor` / `MouseLockedCursor`), optionally the normal pointer too. Games that draw their own crosshair keep it.
-- **Weather**: rain, snow or a thunderstorm (with lightning) over your screen in Low, Mild or Heavy. It is a see-through, click-through layer on top of the screen (Nova can't draw inside Roblox), shown only while the Roblox window is in front unless you turn that off.
+- **Weather**: rain, snow or a thunderstorm (with lightning) over your screen in Low, Mild or Heavy. It is a see-through, click-through layer on top of the screen (Nova can't draw inside Roblox), shown only while you are in a game (not on the Roblox app home page) unless you turn that off.
 - **Clean Roblox logs & temp files** in Maintenance.
 - **Sky**: pick a color or any picture (one for every side, or each side). Nova cuts a square, converts it to the
   512x512 DXT1 `.tex` files Roblox uses and puts them over its default sky, so every game that doesn't build its own sky

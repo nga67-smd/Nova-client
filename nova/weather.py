@@ -1,7 +1,7 @@
 """Weather over your screen while you play: rain, snow or a thunderstorm in three strengths.
 
 Nova can't draw inside Roblox, so this is a see-through window laid over the screen. It ignores the mouse, never takes focus and
-(by default) only shows while the Roblox window is the one in front. It runs as its own small process, so closing Nova ends it.
+(by default) only shows while you are in a game, not on the Roblox app's home page. It runs as its own small process, so closing Nova ends it.
 """
 from __future__ import annotations
 
@@ -79,15 +79,15 @@ class Sky:
 
     def _new(self, start: bool = False) -> dict:
         r = self.rng
+        z = r.random() ** 0.8                                    # 0 = far away, 1 = right in front of you
+        y = r.uniform(0, self.h) if start else r.uniform(-60, 0)
         if self.snow:
-            p = {"x": r.uniform(0, self.w), "y": r.uniform(0, self.h) if start else r.uniform(-30, 0), "r": r.uniform(1.5, 4.2),
-                 "vy": r.uniform(55, 150), "ph": r.uniform(0, 6.3), "sw": r.uniform(12, 40)}
-            p["vx"] = 0.0
-        else:
-            heavy = {"low": 0.8, "mild": 1.0, "heavy": 1.25}[self.level]
-            p = {"x": r.uniform(-100, self.w + 100), "y": r.uniform(0, self.h) if start else r.uniform(-60, 0),
-                 "len": r.uniform(12, 24) * heavy, "vy": r.uniform(900, 1400) * heavy, "vx": -r.uniform(120, 220) * heavy}
-        return p
+            return {"x": r.uniform(0, self.w), "y": y, "z": z, "r": 1.1 + z * 5.2, "a": r.uniform(0, math.pi / 3),
+                    "vy": 35 + z * 120, "vx": 0.0, "ph": r.uniform(0, 6.3), "sw": 10 + z * 34}
+        heavy = {"low": 0.85, "mild": 1.0, "heavy": 1.2}[self.level]
+        vy = (650 + z * 950) * heavy
+        return {"x": r.uniform(-120, self.w + 120), "y": y, "z": z, "len": (12 + z * 46) * heavy, "vy": vy, "vx": -(110 + z * 110) * heavy,
+                "wide": 2 if z > 0.62 else 1}
 
     def step(self, dt: float) -> None:
         dt = min(max(dt, 0.0), 0.1)
@@ -116,6 +116,38 @@ class Sky:
         return round(max(0.0, min(0.45, 0.45 * f * flick)), 3)
 
 
+def shade(z: float, far: tuple[int, int, int], near: tuple[int, int, int]) -> str:
+    """Far things are dim and bluish, near things bright: a color between the two by depth."""
+    z = max(0.0, min(1.0, z))
+    return "#%02x%02x%02x" % tuple(round(a + (b - a) * z) for a, b in zip(far, near))
+
+
+def snowflake_lines(x: float, y: float, r: float, a: float) -> list[tuple[float, float, float, float]]:
+    """Three lines crossing in the middle: a six-armed snowflake."""
+    out = []
+    for k in range(3):
+        t = a + k * math.pi / 3
+        dx, dy = math.cos(t) * r, math.sin(t) * r
+        out.append((x - dx, y - dy, x + dx, y + dy))
+    return out
+
+
+# ---- is the person in a game, or only on the Roblox app's home page? (the home page is started with --app)
+JOIN_MARK = "Joining game"
+LEAVE_MARKS = ("Client:Disconnect", "Time to disconnect replication data", "Game ended", "Leaving game")
+
+
+def is_ingame(cmdline: str, log_tail: str) -> bool:
+    """cmdline: how the front Roblox window's program was started ('' if unknown). log_tail: the end of Roblox's newest log."""
+    cmd = (cmdline or "").lower()
+    if cmd and "--app" not in cmd:
+        return True                                              # started by a game link: it is a game
+    joined, left = log_tail.rfind(JOIN_MARK), max(log_tail.rfind(m) for m in LEAVE_MARKS)
+    if not cmd and joined < 0:
+        return True                                              # can't tell: better to show than to hide
+    return joined > left
+
+
 # ------------------------------------------------------------------ the see-through window (Windows)
 
 def available() -> bool:
@@ -126,15 +158,58 @@ def available() -> bool:
         return False
 
 
-def _foreground_title() -> str:
+def _foreground_roblox_pid() -> int:
+    """The process id of the front window when it is a Roblox window, else 0."""
     if os.name != "nt":
-        return ""
+        return 0
     import ctypes
     u = ctypes.windll.user32
     h = u.GetForegroundWindow()
     buf = ctypes.create_unicode_buffer(256)
     u.GetWindowTextW(h, buf, 256)
-    return buf.value
+    if buf.value != "Roblox":
+        return 0
+    pid = ctypes.c_ulong(0)
+    u.GetWindowThreadProcessId(h, ctypes.byref(pid))
+    return pid.value
+
+
+_CMD_CACHE: dict[int, str] = {}
+
+
+def _cmdline(pid: int) -> str:
+    if pid not in _CMD_CACHE:
+        out = ""
+        try:
+            out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                                  f"(Get-CimInstance Win32_Process -Filter 'ProcessId={int(pid)}').CommandLine"],
+                                 capture_output=True, text=True, timeout=8, creationflags=0x08000000).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            pass
+        _CMD_CACHE[pid] = out
+    return _CMD_CACHE[pid]
+
+
+def _log_tail() -> str:
+    base = os.environ.get("LOCALAPPDATA")
+    try:
+        logs = sorted((Path(base) / "Roblox" / "logs").glob("*.log"), key=lambda f: f.stat().st_mtime, reverse=True) if base else []
+        if not logs:
+            return ""
+        with open(logs[0], "rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 300_000))
+            return f.read().decode("utf-8", "replace")
+    except OSError:
+        return ""
+
+
+def _in_game_now() -> bool:
+    pid = _foreground_roblox_pid()
+    if not pid:
+        return False
+    cmd = _cmdline(pid)
+    return is_ingame(cmd, _log_tail() if (not cmd or "--app" in cmd.lower()) else "")
 
 
 def run_overlay(kind: str, level: str, only_roblox: bool = True) -> int:
@@ -166,10 +241,27 @@ def run_overlay(kind: str, level: str, only_roblox: bool = True) -> int:
     root.update_idletasks()
     click_through()
     sky = sky_cls(kind, level, w, h)
-    color = "#ffffff" if sky.snow else "#9db9e8"
-    items = []
+    items = []                                                   # per particle: a function that moves its drawing
     for p in sky.parts:
-        items.append(cv.create_oval(0, 0, 1, 1, fill=color, outline="") if sky.snow else cv.create_line(0, 0, 1, 1, fill=color, width=1))
+        if sky.snow:
+            col = shade(p["z"], (150, 168, 200), (255, 255, 255))
+            if p["r"] < 2.3:                                         # far away: a tiny dim speck
+                it = cv.create_rectangle(0, 0, 1, 1, fill=col, outline="")
+                items.append(lambda p, it=it: cv.coords(it, p["x"], p["y"], p["x"] + max(1, p["r"]), p["y"] + max(1, p["r"])))
+                continue
+            halo = cv.create_oval(0, 0, 1, 1, fill="#cfe2ff", outline="", stipple="gray25") if p["r"] > 4.6 else None   # a soft glow: out of focus
+            arms = [cv.create_line(0, 0, 1, 1, fill=col, width=2 if p["r"] > 4.6 else 1) for _ in range(3)]
+
+            def move_flake(p, halo=halo, arms=arms):
+                if halo:
+                    cv.coords(halo, p["x"] - p["r"] * 1.5, p["y"] - p["r"] * 1.5, p["x"] + p["r"] * 1.5, p["y"] + p["r"] * 1.5)
+                for ln, c in zip(arms, snowflake_lines(p["x"], p["y"], p["r"], p["a"] + sky.t * 0.4 * (1 if p["ph"] > 3.1 else -1))):
+                    cv.coords(ln, *c)
+            items.append(move_flake)
+        else:
+            col = shade(p["z"], (84, 104, 150), (214, 228, 255))
+            it = cv.create_line(0, 0, 1, 1, fill=col, width=p["wide"])
+            items.append(lambda p, it=it: cv.coords(it, p["x"], p["y"], p["x"] + p["vx"] / p["vy"] * p["len"], p["y"] + p["len"]))
     flash_rect = cv.create_rectangle(0, 0, w, h, fill="#ffffff", outline="", stipple="gray12", state="hidden") if kind == "thunder" else None
     state = {"last": time.time(), "shown": True, "check": 0.0, "alive": True}
 
@@ -190,7 +282,7 @@ def run_overlay(kind: str, level: str, only_roblox: bool = True) -> int:
         dt, state["last"] = now - state["last"], now
         if now - state["check"] > 1.0:
             state["check"] = now
-            want = (not only_roblox) or _foreground_title() == "Roblox"
+            want = (not only_roblox) or _in_game_now()
             if want != state["shown"]:
                 state["shown"] = want
                 root.deiconify() if want else root.withdraw()
@@ -199,12 +291,8 @@ def run_overlay(kind: str, level: str, only_roblox: bool = True) -> int:
                     click_through()
         if state["shown"]:
             sky.step(dt)
-            for it, p in zip(items, sky.parts):
-                if sky.snow:
-                    r = p["r"]
-                    cv.coords(it, p["x"] - r, p["y"] - r, p["x"] + r, p["y"] + r)
-                else:
-                    cv.coords(it, p["x"], p["y"], p["x"] + p["vx"] / p["vy"] * p["len"], p["y"] + p["len"])
+            for move, p in zip(items, sky.parts):
+                move(p)
             if flash_rect:
                 a = sky.flash_alpha()
                 cv.itemconfigure(flash_rect, state="normal" if a > 0 else "hidden", stipple="gray50" if a > 0.3 else "gray25" if a > 0.12 else "gray12")

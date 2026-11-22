@@ -734,3 +734,22 @@ def test_weather_runner_starts_and_stops_the_overlay(home, monkeypatch):
         assert False
     except rbx.NovaError:
         pass
+
+
+def test_weather_only_in_a_game_and_nicer_looks():
+    from nova import weather
+    game = r'"C:\\Roblox\\Versions\\version-abc\\RobloxPlayerBeta.exe" roblox-player:1+launchmode:play+gameinfo:xyz'
+    home_page = r'"C:\\Roblox\\Versions\\version-abc\\RobloxPlayerBeta.exe" --app'
+    assert weather.is_ingame(game, "") is True                                                  # started by a game link
+    assert weather.is_ingame(home_page, "nothing yet") is False                                 # the app's home page
+    assert weather.is_ingame(home_page, "x Joining game 'abc' place 1 y") is True               # joined a game from the app
+    assert weather.is_ingame(home_page, "Joining game 'abc' ... Client:Disconnect") is False    # and left it again
+    assert weather.is_ingame("", "") is True and weather.is_ingame("", "Joining game 'a' Game ended") is False
+    assert weather.shade(0, (0, 0, 0), (255, 255, 255)) == "#000000" and weather.shade(1, (0, 0, 0), (255, 255, 255)) == "#ffffff"
+    lines = weather.snowflake_lines(100, 100, 5, 0)
+    assert len(lines) == 3 and all(abs((x1 + x2) / 2 - 100) < 1e-6 and abs((y1 + y2) / 2 - 100) < 1e-6 for x1, y1, x2, y2 in lines)
+    sky = weather.Sky("snow", "heavy", 1920, 1080)
+    sizes = {round(p["r"]) for p in sky.parts}
+    assert len(sizes) >= 4 and min(p["r"] for p in sky.parts) < 2.3 < max(p["r"] for p in sky.parts)   # specks far away, big flakes up close
+    rain = weather.Sky("rain", "heavy", 1920, 1080)
+    assert min(p["len"] for p in rain.parts) < 25 < max(p["len"] for p in rain.parts) and {p["wide"] for p in rain.parts} == {1, 2}
