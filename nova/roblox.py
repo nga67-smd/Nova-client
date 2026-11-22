@@ -890,7 +890,7 @@ def status() -> dict:
     return {"supported": supported(), "version": v, "from": st.get("from", "") if v else "", "found": existing_installs()[:3],
             "registered": protocol_registered(), "flags": flags,
             "presets": {k: {"name": p["name"], "desc": p["desc"]} for k, p in PRESETS.items()}, "preset_on": preset_states(flags),
-            "sky": sky_info(), "crosshair": crosshair_info(), "extras": extras_info(), "sky_library": library_list(), "skyfix": {"on": skyfix_on(), "enabled": st.get("skyfix", True)}, "sky_presets": {k: v[0] for k, v in SKY_PRESETS.items()}, "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}
+            "sky": sky_info(), "crosshair": crosshair_info(), "extras": extras_info(), "weather": _weather_info(), "sky_library": library_list(), "skyfix": {"on": skyfix_on(), "enabled": st.get("skyfix", True)}, "sky_presets": {k: v[0] for k, v in SKY_PRESETS.items()}, "path": str(root()), "sky_folder": str(sky_folder(Path(st["dir"]))) if v else ""}
 
 
 def _junk_dirs() -> list[Path]:
@@ -1277,3 +1277,8 @@ def extras_info() -> dict:
     meta = read_json(_snd_dir() / "sound.json", {}) or {}
     fps = load_flags().get(FPS_FLAG)
     return {"death": meta.get("death", "default"), "death_name": meta.get("name", ""), "fps": fps if isinstance(fps, int) and not isinstance(fps, bool) else None}
+
+
+def _weather_info() -> dict:
+    from . import weather
+    return {**weather.settings(), "kinds": weather.KINDS, "levels": weather.LEVELS, "available": weather.available()}

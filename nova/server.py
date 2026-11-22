@@ -21,7 +21,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import (__version__, IS_ROBLOX, accounts, btnart, cosmetics, curseforge, hudmod, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths, roblox as rbx,
+from . import (__version__, IS_ROBLOX, accounts, btnart, cosmetics, curseforge, hudmod, instances, java as javamod, launch, loaders, mods, msauth, optimize, paths, roblox as rbx, weather,
                settings as settingsmod, versions)
 from . import look
 from .util import NovaError, TaskManager, human_size, dir_size, slugify
@@ -66,6 +66,7 @@ class App:
         self.ms_flows: dict[str, threading.Event] = {}
         self.httpd: ThreadingHTTPServer | None = None
         self.rbx_proc = None             # the running Roblox, if Nova started it
+        self.weather = weather.Runner()  # rain / snow / storm over the screen
         self.ui_ok = threading.Event()   # set once the window has really drawn the page
 
     # ------------------------------------------------------------- state
@@ -304,6 +305,12 @@ def build_routes(app: App):
             rbx.set_fps_cap(None if v in (None, "", 0) else int(v))
         except (TypeError, ValueError):
             raise NovaError("Pick an FPS limit between 30 and 1000.") from None
+        return rbx.status()
+
+    @route("POST", "/api/roblox/weather")
+    def _rbx_weather(ctx):
+        s = weather.save(str(ctx.body.get("kind", "")), str(ctx.body.get("level", "")), ctx.body.get("only_roblox", True) is not False)
+        app.weather.apply(s)
         return rbx.status()
 
     @route("POST", "/api/roblox/sky/preset")

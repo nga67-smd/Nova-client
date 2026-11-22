@@ -367,6 +367,8 @@ def test_http_routes(home, monkeypatch):
     assert call("POST", "/api/roblox/sky-upload", raw=_png(), hdr={"X-Face": "up"})[0] == 200
     assert (d / "content" / "sky" / "sky512_up.tex").read_bytes()[:4] == b"DDS "
     assert call("POST", "/api/roblox/sky/clear")[1]["sky"]["set"] is False
+    assert call("POST", "/api/roblox/weather", {"kind": "off", "level": "heavy"})[1]["weather"]["level"] == "heavy"
+    assert call("POST", "/api/roblox/weather", {"kind": "hail", "level": "low"})[0] == 400
     assert call("POST", "/api/roblox/fps", {"fps": 165})[1]["extras"]["fps"] == 165
     assert call("POST", "/api/roblox/fps", {"fps": 5})[0] == 400 and call("POST", "/api/roblox/fps", {"fps": "abc"})[0] == 400
     assert call("POST", "/api/roblox/fps", {"fps": None})[1]["extras"]["fps"] is None
@@ -662,3 +664,73 @@ def test_roblox_from_any_launcher_folder_is_found(home):
     assert rbx.status()["from"] == "SomeOtherLauncher"
     assert rbx.overlay_dir() == home / "local" / "SomeOtherLauncher" / "Modifications"
     assert d.is_dir()
+
+
+def test_weather_settings_strengths_and_lightning(home, monkeypatch):
+    import random
+    from nova import weather
+    assert weather.settings()["kind"] == "off"
+    assert weather.save("snow", "heavy", False) == {"kind": "snow", "level": "heavy", "only_roblox": False}
+    for bad in (("hail", "low", True), ("rain", "extreme", True)):
+        try:
+            weather.save(*bad)
+            assert False
+        except rbx.NovaError:
+            pass
+    counts = {lv: len(weather.Sky("rain", lv, 1920, 1080).parts) for lv in ("low", "mild", "heavy")}
+    assert counts["low"] < counts["mild"] < counts["heavy"]
+    snow = {lv: len(weather.Sky("snow", lv, 1920, 1080).parts) for lv in ("low", "mild", "heavy")}
+    assert snow["low"] < snow["mild"] < snow["heavy"]
+    big, small = len(weather.Sky("rain", "mild", 3840, 2160).parts), len(weather.Sky("rain", "mild", 1280, 720).parts)
+    assert big > small                                                                        # more screen, more drops
+    sky = weather.Sky("rain", "heavy", 1920, 1080, random.Random(1))
+    for _ in range(600):
+        sky.step(0.033)
+    assert all(-150 <= p["x"] <= 2070 and -80 <= p["y"] <= 1110 for p in sky.parts) and sky.strikes == 0   # rain has no lightning
+    flakes = weather.Sky("snow", "mild", 1920, 1080, random.Random(2))
+    y0 = [p["y"] for p in flakes.parts]
+    flakes.step(0.1)
+    assert all(p["y"] != a for p, a in zip(flakes.parts, y0))
+    storm = weather.Sky("thunder", "heavy", 1920, 1080, random.Random(3))
+    seen = []
+    for _ in range(60 * 30):
+        storm.step(1 / 30)
+        seen.append(storm.flash_alpha())
+    assert storm.strikes >= 3 and max(seen) > 0.1 and max(seen) <= 0.45 and min(seen) == 0
+    calm = weather.Sky("thunder", "low", 1920, 1080, random.Random(3))
+    for _ in range(60 * 30):
+        calm.step(1 / 30)
+    assert calm.strikes < storm.strikes                                                       # heavy storms flash more often
+
+
+def test_weather_runner_starts_and_stops_the_overlay(home, monkeypatch):
+    from nova import weather
+    started = []
+
+    class P:
+        def __init__(self, cmd, **kw):
+            started.append((cmd, kw))
+            self.stdin = type("S", (), {"close": lambda s: None})()
+            self.dead = False
+
+        def poll(self):
+            return 0 if self.dead else None
+
+        def terminate(self):
+            self.dead = True
+
+        def wait(self, t):
+            pass
+    monkeypatch.setattr(weather.subprocess, "Popen", P)
+    monkeypatch.setattr(weather, "available", lambda: True)
+    r = weather.Runner()
+    r.apply({"kind": "rain", "level": "low", "only_roblox": True})
+    assert r.running() and started[0][0][-2:] == ["--weather", "rain:low:1"]
+    r.apply({"kind": "off", "level": "low", "only_roblox": True})
+    assert not r.running() and len(started) == 1
+    monkeypatch.setattr(weather, "available", lambda: False)
+    try:
+        r.apply({"kind": "snow", "level": "low", "only_roblox": True})
+        assert False
+    except rbx.NovaError:
+        pass
