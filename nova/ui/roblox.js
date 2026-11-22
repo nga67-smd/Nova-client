@@ -209,7 +209,7 @@ async function pageWeather(v) {
     w.available ? null : el("div", { class: "section card" }, el("p", {}, "This build of Nova can't draw weather.")),
     el("div", { class: "section card" }, el("h2", {}, "Weather"), el("div", { style: { height: "10px" } }), seg(w.kinds, w.kind, "kind")),
     el("div", { class: "section card" }, el("h2", {}, "Strength"), el("p", { class: "muted small", style: { margin: "4px 0 10px" } }, "Low is a light touch, Heavy fills the screen. For a thunderstorm it also sets how often lightning flashes."), seg(w.levels, w.level, "level")),
-    el("div", { class: "section card" }, toggleRow("Only while Roblox is in front", "Hides the weather when you switch to another window, so it doesn't cover your desktop.", !!w.only_roblox, (on) => save({ only_roblox: on }))),
+    el("div", { class: "section card" }, toggleRow("Only while I'm in a game", "Hides the weather on the Roblox app's home page and when you switch to another window, so it never covers your desktop.", !!w.only_roblox, (on) => save({ only_roblox: on }))),
     el("p", { class: "muted small" }, "This is a see-through layer on top of your screen, not something inside Roblox. It ignores the mouse, so you can click straight through it, but it can't show over a game in true exclusive fullscreen. Keep Roblox in windowed or borderless mode, and it stays on while Nova is open."));
 }
 
