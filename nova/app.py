@@ -148,11 +148,24 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--reset-look", action="store_true", help="turn off animated / imported backgrounds (if the window comes up blank)")
     ap.add_argument("--software-render", action="store_true", help="draw the window without the GPU (fixes a blank gray window)")
     ap.add_argument("--launch", metavar="LINK", help="(Roblox) open a roblox.com launch link with Nova's settings")
+    ap.add_argument("--weather", metavar="KIND:LEVEL:ONLY", help="(Roblox) draw weather over the screen; started by Nova itself")
+    ap.add_argument("--weather-selftest", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--version", action="store_true")
     args = ap.parse_args(argv)
     if args.version:
         print(f"{APP_NAME} {__version__}")
         return 0
+    if args.weather_selftest:
+        from . import weather
+        return weather.selftest()
+    if args.weather:
+        from . import weather
+        try:
+            kind, level, only = args.weather.split(":")
+            return weather.run_overlay(kind, level, only == "1")
+        except Exception as e:
+            print(f"Weather couldn't start: {e}")
+            return 1
     if args.home:
         os.environ["NOVA_HOME"] = args.home
     paths.data_dir().mkdir(parents=True, exist_ok=True)
@@ -187,6 +200,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Couldn't start Roblox: {e}")
             _error_box(f"Couldn't start Roblox.\n\n{e}")
             return 1
+    if IS_ROBLOX:
+        try:
+            app.weather.apply()                         # rain, snow or storm over the screen, if it was left on
+        except Exception as e:
+            print(f"Weather didn't start: {e}")
     presence = discord.Presence(app)
     presence.start()
     start_server(app, args.port)
@@ -225,6 +243,7 @@ def main(argv: list[str] | None = None) -> int:
     except KeyboardInterrupt:
         pass
     finally:
+        app.weather.stop()
         presence.shutdown()
     return 0
 

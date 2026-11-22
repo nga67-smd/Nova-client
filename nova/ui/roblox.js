@@ -1,11 +1,11 @@
 /* Nova Roblox pages. Loaded before app.js; only used when the server says app === "roblox". */
 "use strict";
 
-window.RBX_PAGES = { roblox: pageRoblox, sky: pageSky, crosshair: pageCrosshair, flags: pageFlags, extras: pageExtras };
+window.RBX_PAGES = { roblox: pageRoblox, sky: pageSky, crosshair: pageCrosshair, weather: pageWeather, flags: pageFlags, extras: pageExtras };
 
 function rbxInit() {
   NAV.length = 0;
-  NAV.push(["roblox", "Roblox", "library"], ["sky", "Sky", "cosmetics"], ["crosshair", "Crosshair", "cosmetics"], ["flags", "FastFlags", "settings"], ["extras", "Extras", "discover"], ["settings", "Appearance", "profiles"]);
+  NAV.push(["roblox", "Roblox", "library"], ["sky", "Sky", "cosmetics"], ["crosshair", "Crosshair", "cosmetics"], ["weather", "Weather", "cosmetics"], ["flags", "FastFlags", "settings"], ["extras", "Extras", "discover"], ["settings", "Appearance", "profiles"]);
   S.page = "roblox";
   document.title = "Nova Roblox";
   const name = document.querySelector(".brand-name"); if (name) name.textContent = "Nova Roblox";
@@ -199,6 +199,18 @@ async function pageCrosshair(v) {
       el("p", { class: "muted small", style: { margin: "4px 0 12px" } }, "Any picture works. A PNG with a see-through background looks best. Nova shrinks it to fit a small cursor."),
       el("button", { class: "btn", onclick: pick }, icon("plus"), "Import picture")),
     el("p", { class: "muted small" }, "Some games draw their own crosshair or hide the cursor, and Nova can't change those."));
+}
+
+async function pageWeather(v) {
+  const w = S.data.roblox.weather;
+  const save = async (patch) => { try { await rbxPost("/api/roblox/weather", { kind: w.kind, level: w.level, only_roblox: w.only_roblox, ...patch }); await rbxRefresh(); } catch (e) { fail(e); } };
+  const seg = (items, current, key) => el("div", { class: "row", style: { "flex-wrap": "wrap", gap: "8px" } }, ...Object.entries(items).map(([k, name]) => el("button", { class: "btn" + (k === current ? " primary" : ""), onclick: () => save({ [key]: k }) }, name)));
+  put(v, el("div", { class: "page-head" }, el("div", { class: "grow" }, el("h1", {}, "Weather"), el("p", {}, "Rain, snow or a thunderstorm over your screen while you play."))),
+    w.available ? null : el("div", { class: "section card" }, el("p", {}, "This build of Nova can't draw weather.")),
+    el("div", { class: "section card" }, el("h2", {}, "Weather"), el("div", { style: { height: "10px" } }), seg(w.kinds, w.kind, "kind")),
+    el("div", { class: "section card" }, el("h2", {}, "Strength"), el("p", { class: "muted small", style: { margin: "4px 0 10px" } }, "Low is a light touch, Heavy fills the screen. For a thunderstorm it also sets how often lightning flashes."), seg(w.levels, w.level, "level")),
+    el("div", { class: "section card" }, toggleRow("Only while Roblox is in front", "Hides the weather when you switch to another window, so it doesn't cover your desktop.", !!w.only_roblox, (on) => save({ only_roblox: on }))),
+    el("p", { class: "muted small" }, "This is a see-through layer on top of your screen, not something inside Roblox. It ignores the mouse, so you can click straight through it, but it can't show over a game in true exclusive fullscreen. Keep Roblox in windowed or borderless mode, and it stays on while Nova is open."));
 }
 
 async function pageExtras(v) {

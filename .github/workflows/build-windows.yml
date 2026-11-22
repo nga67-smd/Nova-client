@@ -42,6 +42,11 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "Nova.exe exited with $($p.ExitCode)" }
           $p = Start-Process dist\NovaRoblox.exe -ArgumentList "--version" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "NovaRoblox.exe exited with $($p.ExitCode)" }
+      - name: Check the weather window can open (tkinter is bundled)
+        continue-on-error: true
+        run: |
+          $p = Start-Process dist\NovaRoblox-debug.exe -ArgumentList "--weather-selftest" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "weather window selftest exited with $($p.ExitCode)" }
       - uses: actions/upload-artifact@v4
         with:
           name: Nova-windows
