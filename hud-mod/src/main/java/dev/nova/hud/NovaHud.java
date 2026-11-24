@@ -8,7 +8,7 @@ import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 
-/** Draws the armor HUD and the optional FPS / coordinates lines. */
+/** Draws the armor HUD and the Nova panels. */
 public final class NovaHud {
     private static final int PURPLE = 0xFFB66BFF;
     private static final EquipmentSlot[] ARMOR_SLOTS = {
@@ -22,17 +22,48 @@ public final class NovaHud {
         if (player == null || mc.options.hudHidden) return;
         NovaConfig c = NovaConfig.get();
         TextRenderer font = mc.textRenderer;
+        NovaStats.frame(mc);
 
         if (c.armorHud) drawArmor(ctx, mc, player, font, c);
 
-        int y = 4;
-        if (c.showFps) {
-            ctx.drawTextWithShadow(font, mc.getCurrentFps() + " FPS", 4, y, PURPLE);
-            y += 11;
+        // Build the panels, then stack the ones that share a corner.
+        java.util.List<NovaPanels.Block>[] groups = new java.util.List[8];
+        for (int i = 0; i < 8; i++) groups[i] = new java.util.ArrayList<>();
+        add(groups, c.anchorInfo, NovaPanels.info(mc, player, c));
+        if (c.keystrokes) add(groups, c.anchorKeys, NovaPanels.keystrokes(mc, c));
+        if (c.potions) add(groups, c.anchorPotions, NovaPanels.potions(mc, player, c));
+        if (c.itemCounts) add(groups, c.anchorItems, NovaPanels.items(mc, player, c));
+
+        int sw = ctx.getScaledWindowWidth(), sh = ctx.getScaledWindowHeight();
+        float s = c.hudScale;
+        for (int a = 0; a < 8; a++) {
+            java.util.List<NovaPanels.Block> list = groups[a];
+            if (list.isEmpty()) continue;
+            int gw = 0, gh = 0, gap = 3;
+            for (NovaPanels.Block b : list) {
+                gw = Math.max(gw, b.w);
+                gh += b.h + gap;
+            }
+            gh -= gap;
+            boolean right = a == 1 || a == 3 || a == 5;
+            boolean centre = a == 6 || a == 7;
+            float x = centre ? (sw - gw * s) / 2f : right ? sw - c.marginX - gw * s : c.marginX;
+            float y = (a == 2 || a == 3 || a == 7) ? sh - c.marginY - gh * s : (a == 4 || a == 5) ? (sh - gh * s) / 2f : c.marginY;
+
+            Compat.push(ctx);
+            Compat.translate(ctx, x, y);
+            Compat.scale(ctx, s);
+            int cy = 0;
+            for (NovaPanels.Block b : list) {
+                b.draw(ctx, (right ? gw - b.w : centre ? (gw - b.w) / 2 : 0), cy);
+                cy += b.h + gap;
+            }
+            Compat.pop(ctx);
         }
-        if (c.showCoords) {
-            ctx.drawTextWithShadow(font, "XYZ " + player.getBlockX() + " " + player.getBlockY() + " " + player.getBlockZ(), 4, y, PURPLE);
-        }
+    }
+
+    private static void add(java.util.List<NovaPanels.Block>[] groups, int anchor, NovaPanels.Block b) {
+        if (b != null) groups[Math.floorMod(anchor, 8)].add(b);
     }
 
     private static void drawArmor(DrawContext ctx, MinecraftClient mc, PlayerEntity player, TextRenderer font, NovaConfig c) {
