@@ -3,7 +3,7 @@
   "id": "nova_hud",
   "version": "${version}",
   "name": "Nova HUD",
-  "description": "Press Right Shift in-game to move, scale or hide the sidebar, show an armor HUD, and tweak your held-item view model. Also shows the skin and cape from Nova Launcher's Cosmetics tab.",
+  "description": "Nova-styled HUD: FPS, ping, CPS, coordinates, keystrokes, potion effects, item counts, armor HUD and more, all with your own colors, size and width. Press Right Shift in-game to customise. Also shows the skin and cape from Nova Launcher's Cosmetics tab.",
   "authors": ["Nova Launcher"],
   "license": "MIT",
   "environment": "client",

@@ -17,7 +17,9 @@ public class NovaHudClient implements ClientModInitializer {
         menuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.nova_hud.menu", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, "key.categories.nova_hud"));
 
+        NovaStats.init();
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            NovaStats.tick(client);
             while (menuKey.wasPressed()) {
                 if (client.currentScreen == null) client.setScreen(new NovaHudScreen(null));
             }

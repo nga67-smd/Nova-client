@@ -5,7 +5,7 @@ In-game overlay for Nova Launcher. Press **Right Shift** (rebindable) to open th
 - Sidebar (scoreboard): hide, resize, move up/down
 - Armor HUD on the left (or right) with durability
 - View model: move, resize and rotate the held item/hand
-- FPS and coordinates lines
+- Nova-styled info panel (FPS, ping, CPS, coordinates, facing, biome, speed, clock, game time, memory, combo, reach), keystrokes, potion effects and item counts, each placeable in any corner, with your own colors, opacity, size, width, corners and border (Look tab)
 
 Client-side only; settings are saved to `config/nova-hud.json`. Needs Fabric Loader and Fabric API.
 
