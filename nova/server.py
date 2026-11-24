@@ -602,9 +602,12 @@ def build_routes(app: App):
 
     @route("GET", "/api/modrinth/search")
     def _search(ctx):
-        return mods.search(ctx.q("q") or "", ctx.q("mc") or "", ctx.q("loader") or "", ctx.q("type") or "mod",
-                           ctx.q("sort") or "relevance", int(ctx.q("offset") or 0),
-                           source="curseforge" if ctx.q("source") == "curseforge" else "modrinth")
+        r = mods.search(ctx.q("q") or "", ctx.q("mc") or "", ctx.q("loader") or "", ctx.q("type") or "mod",
+                        ctx.q("sort") or "relevance", int(ctx.q("offset") or 0),
+                        source="curseforge" if ctx.q("source") == "curseforge" else "modrinth")
+        if ctx.q("inst"):
+            mods.mark_installed(ctx.q("inst"), ctx.q("type") or "mod", r["hits"])
+        return r
 
     @route("GET", "/api/cosmetics")
     def _cos_get(ctx):
