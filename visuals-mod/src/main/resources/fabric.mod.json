@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "nova_visuals",
+  "version": "${version}",
+  "name": "Nova Visuals",
+  "description": "A client-side visual mod: glowing particles, trails, rings, gothic wings and halos, aurora and star skies, and a modern ClickGUI. Purely cosmetic. Press Right Shift to open the menu.",
+  "authors": ["Nova Launcher"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": { "client": ["dev.nova.visuals.NovaVisuals"] },
+  "mixins": ["nova_visuals.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

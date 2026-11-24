@@ -1,0 +1,11 @@
+pluginManagement {
+    plugins {
+        id 'fabric-loom' version "${loom_version}"
+    }
+    repositories {
+        maven { url = 'https://maven.fabricmc.net/' }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+rootProject.name = 'nova-visuals'

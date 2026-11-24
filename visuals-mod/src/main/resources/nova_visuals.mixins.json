@@ -1,0 +1,8 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "dev.nova.visuals.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["InGameHudMixin"],
+  "injectors": { "defaultRequire": 0 }
+}
