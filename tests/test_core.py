@@ -289,6 +289,24 @@ def test_mod_install_with_dependencies(env, fake):
     assert [r["title"] for r in again] == ["Sodium"]
 
 
+def test_search_results_say_which_mods_you_already_have(env, fake):
+    inst = _inst(env)
+    mods.install_project(inst, "sodium")
+    folder = mods._kind_dir(inst["id"], "mod")
+    (folder / "iris-fabric-1.6.jar").write_bytes(b"dropped in by hand")            # not installed through Nova
+    (folder / "ok.jar").write_bytes(b"x")
+    hits = [{"project_id": "AANobbMI", "slug": "sodium"}, {"project_id": "zzz", "slug": "iris"}, {"project_id": "q", "slug": "lithium"},
+            {"project_id": "w", "slug": "ok"}]
+    meta = mods._load_meta(inst["id"])
+    hits[0]["project_id"] = next(m["project_id"] for n, m in meta.items() if n == "sodium-1.0.jar")
+    got = {h["slug"]: h["installed"] for h in mods.mark_installed(inst["id"], "mod", hits)}
+    assert got == {"sodium": True, "iris": True, "lithium": False, "ok": False}      # short names aren't guessed from file names
+    (folder / "sodium-1.0.jar").rename(folder / "sodium-1.0.jar.disabled")           # switched off still counts as owned
+    assert mods.mark_installed(inst["id"], "mod", [hits[0]])[0]["installed"] is True
+    mods.remove(inst, "mod", "sodium-1.0.jar")
+    assert mods.mark_installed(inst["id"], "mod", [dict(hits[0], slug="sodium")])[0]["installed"] is False
+
+
 def test_mod_toggle_remove_and_traversal(env, fake):
     inst = _inst(env)
     mods.install_project(inst, "lithium")

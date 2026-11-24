@@ -62,6 +62,24 @@ def search(query: str, mc: str = "", loader: str = "", ptype: str = "mod", sort:
     return {"hits": hits, "total": data.get("total_hits", len(hits))}
 
 
+def mark_installed(inst_id: str, ptype: str, hits: list[dict]) -> list[dict]:
+    """Say which search results are already in this instance (installed by Nova, or dropped in by hand)."""
+    if ptype not in KINDS:
+        return hits
+    try:
+        folder, meta = _kind_dir(inst_id, ptype), _load_meta(inst_id)
+        files = [f.name[:-9] if f.name.endswith(".disabled") else f.name for f in folder.iterdir() if not f.name.startswith(".")] if folder.is_dir() else []
+    except OSError:
+        return hits
+    have = {str(m.get("project_id")) for name, m in meta.items() if name in files and m.get("type", ptype) == ptype}
+    plain = [re.sub(r"[^a-z0-9]+", "-", re.sub(r"\.(jar|zip)$", "", n, flags=re.I).lower()) for n in files if n not in meta]
+    for h in hits:
+        slug = re.sub(r"[^a-z0-9]+", "-", str(h.get("slug") or "").lower()).strip("-")
+        by_hand = len(slug) >= 4 and any(n == slug or n.startswith(slug + "-") for n in plain)
+        h["installed"] = str(h.get("project_id")) in have or by_hand
+    return hits
+
+
 # --------------------------------------------------------------- versions
 
 def pick_version(project: str, mc: str, loader: str, ptype: str = "mod") -> dict | None:

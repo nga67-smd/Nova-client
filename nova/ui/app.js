@@ -33,6 +33,7 @@ const ICONS = {
   play: "M8 5v14l11-7z", stop: "M7 7h10v10H7z", plus: "M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z",
   folder: "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
   trash: "M6 7h12l-1 13H7zM9 4h6l1 2H8z", copy: "M8 8h11v13H8zM5 3h11v3H8v10H5z",
+  check: "M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z",
   download: "M11 4h2v8l3-3 1.4 1.4L12 16l-5.4-5.6L8 9l3 3zM5 18h14v2H5z",
   refresh: "M12 5a7 7 0 0 1 6.3 4H21l-3.5 4L14 9h2.5A5 5 0 1 0 17 15l1.8 1A7 7 0 1 1 12 5z",
 };
@@ -589,7 +590,7 @@ async function pageDiscover(v) {
     const my = D.seq = (D.seq || 0) + 1; D.loading = true;
     if (!append) { D.offset = 0; results.replaceChildren(el("div", { class: "muted" }, el("span", { class: "spinner" }), D.source === "curseforge" ? " Searching CurseForge…" : " Searching Modrinth…")); }
     try {
-      const qs = new URLSearchParams({ q: D.q, mc: inst.mc_version, loader: inst.loader, type: D.type, sort: D.sort, offset: D.offset, source: D.source });
+      const qs = new URLSearchParams({ inst: inst.id, q: D.q, mc: inst.mc_version, loader: inst.loader, type: D.type, sort: D.sort, offset: D.offset, source: D.source });
       const r = await api("/api/modrinth/search?" + qs); if (my !== D.seq) return; D.total = r.total;
       if (!append) results.replaceChildren();
       results.querySelector(".more")?.remove();
@@ -612,8 +613,8 @@ async function pageDiscover(v) {
   search();
 }
 function resultRow(h, inst) {
-  const btn = el("button", { class: "btn primary sm" }, icon("download"), "Install");
-  btn.onclick = async () => {
+  const btn = h.installed ? el("button", { class: "btn sm", disabled: true, title: "You already have this in " + inst.name }, icon("check"), "Installed") : el("button", { class: "btn primary sm" }, icon("download"), "Install");
+  if (!h.installed) btn.onclick = async () => {
     btn.disabled = true;
     try { const r = await api(`/api/instances/${inst.id}/mods/install`, { method: "POST", body: { project: h.project_id, type: S.discover.type, title: h.title } });
       runTask(r.task, (t) => { if (t.status === "done") { btn.replaceChildren("Installed"); const n = t.result?.installed?.length || 1; toast(n > 1 ? `Installed ${h.title} and ${n - 1} required ${n === 2 ? "mod" : "mods"}.` : `Installed ${h.title}.`, "ok"); } else { btn.disabled = false; } }); poll();
