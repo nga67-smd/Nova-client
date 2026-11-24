@@ -10,7 +10,8 @@ public final class ColorSpec {
 
     public ColorSpec(Module m, int defaultCustom, int defaultMode) {
         mode = m.add(new Setting.Choice("color_mode", "Color", defaultMode, "Accent", "Rainbow", "Gradient", "Ember", "Custom"));
-        custom = m.add(new Setting.Color("color", "Custom color", defaultCustom).showIf(() -> mode.index == 4));
+        custom = m.add(new Setting.Color("color", "Custom color", defaultCustom));
+        custom.showIf(() -> mode.index == 4);
     }
 
     /** phase 0..1 spreads colors along something (a trail, a ring); the time part animates it. */
