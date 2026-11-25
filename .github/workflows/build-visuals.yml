@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      fail-fast: false
       matrix:
         include:
           - { mc: "1.21.1", gradle: "8.10.2", loom: "1.8-SNAPSHOT" }
