@@ -16,6 +16,7 @@ import org.joml.Matrix4f;
 public final class WorldFx {
     private static VertexConsumerProvider.Immediate imm;
     private static BufferAllocator allocator;
+    private static boolean broken;
 
     private WorldFx() {}
 
@@ -25,7 +26,7 @@ public final class WorldFx {
 
     private static void render(WorldRenderContext ctx) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc.world == null || mc.player == null) return;
+        if (broken || mc.world == null || mc.player == null || ctx.matrixStack() == null) return;
         Time.frame();
         if (imm == null) {
             allocator = new BufferAllocator(1 << 20);
@@ -42,8 +43,17 @@ public final class WorldFx {
             ModuleManager.world(f);
             RingPool.render(f);
             ParticleEngine.render(f, Settings.bloom(), Settings.bloomSize());
+        } catch (RuntimeException | LinkageError e) {
+            // a render API that behaves differently on some version must never crash the game: switch the world effects off instead
+            broken = true;
+            System.err.println("[Nova Visuals] World effects disabled after an error: " + e);
+            e.printStackTrace();
         } finally {
-            f.flush();                       // the layers set up and tear down their own blend/depth state
+            try {
+                f.flush();                   // the layers set up and tear down their own blend/depth state
+            } catch (RuntimeException | LinkageError e) {
+                broken = true;
+            }
         }
         Config.autosave();
     }

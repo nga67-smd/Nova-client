@@ -129,10 +129,10 @@ public final class ClickGui extends Screen {
         regions.clear();
         hovered = null;
 
-        ctx.getMatrices().push();
-        ctx.getMatrices().translate(sw / 2f, sh / 2f, 0f);
-        ctx.getMatrices().scale(scale, scale, 1f);
-        ctx.getMatrices().translate(-sw / 2f, -sh / 2f, 0f);
+        dev.nova.visuals.Compat.push(ctx);
+        dev.nova.visuals.Compat.translate(ctx, sw / 2f, sh / 2f);
+        dev.nova.visuals.Compat.scale(ctx, scale);
+        dev.nova.visuals.Compat.translate(ctx, -sw / 2f, -sh / 2f);
 
         drawPanel(ctx, e, dt);
         drawSidebar(ctx, e, dt, mx, my);
@@ -144,7 +144,7 @@ public final class ClickGui extends Screen {
             statusTime -= Time.dt();
             Draw.textCentered(ctx, textRenderer, status, px + pw / 2f, py + ph - 9, Draw.fade(0xFFFFFFFF, Math.min(1f, statusTime) * e), true);
         }
-        ctx.getMatrices().pop();
+        dev.nova.visuals.Compat.pop(ctx);
     }
 
     private void drawPanel(DrawContext ctx, float e, float dt) {
