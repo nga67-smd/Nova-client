@@ -6,6 +6,20 @@ import dev.nova.visuals.config.Settings;
 import dev.nova.visuals.fx.ParticleEngine;
 import dev.nova.visuals.fx.RingPool;
 import dev.nova.visuals.fx.WorldFx;
+import dev.nova.visuals.core.Time;
+import dev.nova.visuals.gui.ClickGui;
+import dev.nova.visuals.hud.CinematicBarsModule;
+import dev.nova.visuals.hud.CpsHud;
+import dev.nova.visuals.hud.CrosshairModule;
+import dev.nova.visuals.hud.InfoHud;
+import dev.nova.visuals.hud.KeystrokesHud;
+import dev.nova.visuals.hud.PotionHud;
+import dev.nova.visuals.hud.ScreenOverlayModule;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
+import org.lwjgl.glfw.GLFW;
 import dev.nova.visuals.modules.AuroraModule;
 import dev.nova.visuals.modules.StarFieldModule;
 import dev.nova.visuals.modules.SunMoonModule;
@@ -31,6 +45,7 @@ import net.minecraft.util.ActionResult;
 
 public class NovaVisuals implements ClientModInitializer {
     public static HitFxModule hitFx;
+    public static KeyBinding menuKey;
 
     @Override
     public void onInitializeClient() {
@@ -53,10 +68,26 @@ public class NovaVisuals implements ClientModInitializer {
         ModuleManager.register(new MagicCircleModule());
         ModuleManager.register(new BatsModule());
         ModuleManager.register(new AuraModule());
+        ModuleManager.register(new ScreenOverlayModule());
+        ModuleManager.register(new CinematicBarsModule());
+        ModuleManager.register(new InfoHud());
+        ModuleManager.register(new KeystrokesHud());
+        ModuleManager.register(new CpsHud());
+        ModuleManager.register(new PotionHud());
+        ModuleManager.register(new CrosshairModule());
         Config.load();
+
+        menuKey = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.nova_visuals.menu", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, "key.categories.nova_visuals"));
+        HudRenderCallback.EVENT.register((ctx, tickCounter) -> {
+            Time.frame();
+            ModuleManager.hud(ctx, Time.dt());
+        });
 
         WorldFx.init();
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+            while (menuKey.wasPressed()) {
+                if (mc.currentScreen == null) mc.setScreen(new ClickGui());
+            }
             if (mc.world == null) {
                 ParticleEngine.clear();
                 RingPool.clear();
