@@ -29,6 +29,7 @@ from .util import NovaError, TaskManager, human_size, dir_size, slugify
 MAX_UPLOAD = 2 * 1024 * 1024 * 1024
 MAX_BG_IMAGE = 8 * 1024 * 1024
 MAX_BG_VIDEO = 64 * 1024 * 1024
+OPEN_SUBDIRS = {"", "mods", "resourcepacks", "shaderpacks", "screenshots", "saves", "config", "logs", "crash-reports"}
 
 
 def _media_type(path) -> tuple[str, str]:
