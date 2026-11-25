@@ -11,8 +11,9 @@ Original code and assets. Inspired by the general idea of "visual clients", not 
 | 1.21 / 1.21.1 | builds in CI |
 | 1.21.2 / 1.21.3 | builds in CI |
 | 1.21.4 | builds in CI (main target) |
-| 1.21.5 | builds in CI (rendering not checked in game, may need fixes) |
-| 1.21.6 and newer | not supported: Mojang rewrote the renderer and the draw API changed |
+| 1.21.5 | builds in CI (rendering not checked in game) |
+| 1.21.8 | builds in CI; Mojang reworked rendering in 1.21.6, so the world effects are the least certain here (they switch themselves off instead of crashing if the renderer rejects them) |
+| 1.21.6, 1.21.7, 1.21.9 and newer | not built |
 | 1.20.x and older | not supported (needs Java 21 and different APIs) |
 
 Needs Fabric Loader 0.16+ and Fabric API, Java 21.
