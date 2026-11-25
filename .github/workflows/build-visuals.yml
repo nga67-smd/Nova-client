@@ -19,7 +19,6 @@ jobs:
           - { mc: "1.21.3", gradle: "8.10.2", loom: "1.8-SNAPSHOT" }
           - { mc: "1.21.4", gradle: "8.14.3", loom: "1.10-SNAPSHOT" }
           - { mc: "1.21.5", gradle: "8.14.3", loom: "1.10-SNAPSHOT" }
-          - { mc: "1.21.8", gradle: "8.14.3", loom: "1.11-SNAPSHOT" }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
