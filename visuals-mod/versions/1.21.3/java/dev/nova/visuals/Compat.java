@@ -16,4 +16,16 @@ public final class Compat {
         Biome.Precipitation pr = w.getBiome(pos).value().getPrecipitation(pos, w.getSeaLevel());
         return pr == Biome.Precipitation.NONE ? 0 : pr == Biome.Precipitation.SNOW ? 2 : 1;
     }
+
+    public static float tickDelta(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext ctx) {
+        return ctx.tickCounter().getTickDelta(false);
+    }
+
+    public static float bodyYaw(PlayerEntity p, float td) {
+        return net.minecraft.util.math.MathHelper.lerpAngleDegrees(td, p.prevBodyYaw, p.bodyYaw);
+    }
+
+    public static float headYaw(PlayerEntity p, float td) {
+        return net.minecraft.util.math.MathHelper.lerpAngleDegrees(td, p.prevHeadYaw, p.headYaw);
+    }
 }

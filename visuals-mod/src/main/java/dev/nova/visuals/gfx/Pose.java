@@ -23,8 +23,7 @@ public final class Pose {
         ox = (float) (pos.x - f.cam.x);
         oy = (float) (pos.y - f.cam.y);
         oz = (float) (pos.z - f.cam.z);
-        yawDeg = headTurn ? MathHelper.lerpAngleDegrees(f.tickDelta, p.prevHeadYaw, p.headYaw)
-                : MathHelper.lerpAngleDegrees(f.tickDelta, p.prevBodyYaw, p.bodyYaw);
+        yawDeg = headTurn ? dev.nova.visuals.Compat.headYaw(p, f.tickDelta) : dev.nova.visuals.Compat.bodyYaw(p, f.tickDelta);
         float y = (float) Math.toRadians(yawDeg);
         fx = -(float) Math.sin(y);
         fz = (float) Math.cos(y);

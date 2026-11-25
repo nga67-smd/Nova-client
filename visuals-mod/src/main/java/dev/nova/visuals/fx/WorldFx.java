@@ -35,7 +35,7 @@ public final class WorldFx {
         Matrix4f m = new Matrix4f(ctx.matrixStack().peek().getPositionMatrix());
         var cam = ctx.camera();
         Frame f = new Frame(mc.world, mc.player, m, cam.getPos(), cam.getYaw(), cam.getPitch(),
-                ctx.tickCounter().getTickDelta(false), dt, Time.time(), imm);
+                dev.nova.visuals.Compat.tickDelta(ctx), dt, Time.time(), imm);
         try {
             ParticleEngine.update(dt);
             RingPool.update(dt);
