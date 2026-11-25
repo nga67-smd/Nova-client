@@ -28,4 +28,9 @@ public final class Compat {
     public static float headYaw(PlayerEntity p, float td) {
         return net.minecraft.util.math.MathHelper.lerpAngleDegrees(td, p.prevHeadYaw, p.headYaw);
     }
+
+    public static void push(net.minecraft.client.gui.DrawContext c) { c.getMatrices().push(); }
+    public static void pop(net.minecraft.client.gui.DrawContext c) { c.getMatrices().pop(); }
+    public static void translate(net.minecraft.client.gui.DrawContext c, float x, float y) { c.getMatrices().translate(x, y, 0f); }
+    public static void scale(net.minecraft.client.gui.DrawContext c, float s) { c.getMatrices().scale(s, s, 1f); }
 }
