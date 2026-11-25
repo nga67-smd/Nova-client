@@ -10,7 +10,6 @@ import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.Heightmap;
-import net.minecraft.world.biome.Biome;
 
 import java.util.Random;
 
@@ -50,9 +49,9 @@ public final class PrecipModule extends Module {
         else if (mode.index == 2) snow = true;
         else {
             BlockPos cp = BlockPos.ofFloored(f.cam);
-            Biome.Precipitation pr = f.world.getBiome(cp).value().getPrecipitation(cp, f.world.getSeaLevel());
-            if (pr == Biome.Precipitation.NONE && needStorm.value) return;
-            snow = pr == Biome.Precipitation.SNOW;
+            int pr = dev.nova.visuals.Compat.precipitation(f.world, cp);
+            if (pr == 0 && needStorm.value) return;
+            snow = pr == 2;
         }
         int n = Math.min(MAX, (int) (Settings.count(snow ? 520 : 650) * amount.value * strength));
         VertexConsumer b = f.add(snow ? Gfx.GLOW : Gfx.LINE);

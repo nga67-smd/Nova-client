@@ -43,7 +43,7 @@ public final class WingsModule extends Module {
     public void onWorld(Frame f) {
         for (PlayerEntity p : Fx.targets(f)) {
             if (p == f.player && Fx.firstPerson() && !firstPerson.value) continue;
-            if (p.isGliding() || p.isSleeping()) continue;
+            if (dev.nova.visuals.Compat.gliding(p) || p.isSleeping()) continue;
             draw(f, p);
         }
     }

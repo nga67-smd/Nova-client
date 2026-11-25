@@ -13,8 +13,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      fail-fast: false
       matrix:
         include:
+          - { mc: "1.21.1", gradle: "8.10.2", loom: "1.8-SNAPSHOT" }
+          - { mc: "1.21.3", gradle: "8.10.2", loom: "1.8-SNAPSHOT" }
           - { mc: "1.21.4", gradle: "8.14.3", loom: "1.10-SNAPSHOT" }
     steps:
       - uses: actions/checkout@v4
