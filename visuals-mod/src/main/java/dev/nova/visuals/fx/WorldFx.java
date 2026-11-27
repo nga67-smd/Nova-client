@@ -17,6 +17,10 @@ public final class WorldFx {
     private static VertexConsumerProvider.Immediate imm;
     private static BufferAllocator allocator;
     private static boolean broken;
+    private static String error;
+
+    /** Why the world effects were switched off, or null while they work. Shown in the menu. */
+    public static String error() { return error; }
 
     private WorldFx() {}
 
@@ -46,6 +50,7 @@ public final class WorldFx {
         } catch (RuntimeException | LinkageError e) {
             // a render API that behaves differently on some version must never crash the game: switch the world effects off instead
             broken = true;
+            error = e.toString();
             System.err.println("[Nova Visuals] World effects disabled after an error: " + e);
             e.printStackTrace();
         } finally {
@@ -53,6 +58,7 @@ public final class WorldFx {
                 f.flush();                   // the layers set up and tear down their own blend/depth state
             } catch (RuntimeException | LinkageError e) {
                 broken = true;
+                if (error == null) error = e.toString();
             }
         }
         Config.autosave();

@@ -140,6 +140,10 @@ public final class ClickGui extends Screen {
         drawContent(ctx, e, dt, mx, my);
         if (prevW > 0) drawPreview(ctx, e, dt);
         if (picking != null) drawPicker(ctx, e, dt, mx, my);
+        if (dev.nova.visuals.fx.WorldFx.error() != null) {
+            String msg = "World effects are OFF: " + dev.nova.visuals.fx.WorldFx.error();
+            Draw.text(ctx, textRenderer, textRenderer.trimToWidth(msg, (int) (pw - 30)), px + 16, py + ph - 22, Draw.fade(0xFFFF6A6A, e), true);
+        }
         if (statusTime > 0f) {
             statusTime -= Time.dt();
             Draw.textCentered(ctx, textRenderer, status, px + pw / 2f, py + ph - 9, Draw.fade(0xFFFFFFFF, Math.min(1f, statusTime) * e), true);
