@@ -53,7 +53,7 @@ public final class BatsModule extends Module {
                 Gfx.tri(solid, f.m, cx - hx * L * 0.35f, cy - L * 0.05f, cz - hz * L * 0.35f, mx, my, mz, cx + hx * L * 0.3f, cy, cz + hz * L * 0.3f, br, bg, bb, 0.95f);
             }
             // body and head
-            f.sprite(solid, x, y, z, L * 0.28f, 0f, body.value, 0.95f);
+            f.sprite(f.solid(Gfx.CORE), x, y, z, L * 0.34f, 0f, body.value, 0.95f);
             f.bloom(x + hx * L * 0.35f, y + L * 0.05f, z + hz * L * 0.35f, 0.025f * size.value, eyes.value, 0.95f);
         }
     }
